@@ -1,0 +1,83 @@
+CIUDADES INNTELIGENTES EN ANDALUCÍA
+El proyecto ciudades inteligentes transforma 43 municipios andaluces, beneficiando a casi 300.000 habitantes con proyectos tecnológicos que mejoran la movilidad, el bienestar y la gestión de servicios públicos. Impulsados por la Junta de Andalucía y el programa CITI abarcan desde sistemas de control de tráfico hasta la calidad del aire.
+El Consejo de Gobierno de la Junta de Andalucía ha hecho balance este martes, 4 de febrero, de los proyectos en ejecución para el desarrollo de ciudades inteligentes en la comunidad, destacando que los cinco primeros proyectos del programa de ayudas de la orden CITI ya benefician a más de 276.000 habitantes en 43 municipios.
+
+Esta línea de ayudas de ciudades inteligentes tiene como objetivo mejorar la calidad de vida de los ciudadanos mediante la implantación de soluciones tecnológicas en municipios de menos de 20.000 habitantes. En total, las 21 iniciativas previstas tendrán un impacto sobre 311 localidades y 1,3 millones de personas en Andalucía.
+
+Ciudades inteligentes, transformar los municipios
+El programa CITI cuenta con una dotación global de 9,25 millones de euros, de los cuales la Junta financia el 77% (7,1 millones) a través del programa Andalucía Feder 2021-2027. El 23% restante, es decir, 2,15 millones, es asumido por las corporaciones y entidades locales beneficiarias.
+
+Los proyectos de ciudades inteligentes se han estructurado en seis áreas principales: movilidad, bienestar, gobernanza, economía, entorno y plataformas inteligentes. Los cinco primeros proyectos en marcha se centran en áreas como la movilidad y el bienestar, con actuaciones que incluyen sistemas de gestión inteligente de cámaras de tráfico, control de aforos, estaciones de patinetes eléctricos y sistemas de calidad del aire.
+
+Además, se está desarrollando una ‘app’ de movilidad y sistemas de información geográfica para la gestión de instalaciones municipales. Estos proyectos se están llevando a cabo en municipios de Granada, Málaga y Sevilla.
+
+Además de los proyectos de ciudades inteligentes en marcha, otros tres expedientes relacionados con economía, entorno y plataformas inteligentes están en fase de recepción de ofertas. Una vez adjudicados, se prevé que comiencen su ejecución a mediados de 2025, beneficiando a 268 municipios y a aproximadamente un millón de habitantes.
+
+Entre las intervenciones previstas figuran mejoras en las redes wifi locales, plataformas para gestionar el comercio local y soluciones para la eficiencia energética en edificios. También se contemplan sistemas de control de la iluminación y redes de abastecimiento de agua, así como plataformas de ciudad inteligente que integrarán la gestión de los servicios públicos.
+
+Colaboración entre la Junta, ayuntamientos y diputaciones
+Además del proyecto de ciudades inteligentes, el programa CITI ha sido reactivado durante esta legislatura, gracias a la colaboración entre la Junta de Andalucía, ayuntamientos y diputaciones. La ejecución de los proyectos ha sido encomendada a Sandetel, empresa pública encargada de la implementación de las solicitudes beneficiarias.
+
+Las ayudas contemplan dos modalidades: proyectos individuales presentados por entidades locales y proyectos de agrupación, en los que varias localidades colaboran. Actualmente, 17 entidades locales actúan como representantes en proyectos de agrupación, entre ellos ayuntamientos como los de Pozoblanco (Córdoba), Alcaudete y Bailén (Jaén), y Huéscar (Granada). También participan diputaciones de Almería, Córdoba, Granada, Jaén y Málaga.
+
+Según la Junta de Andalucía, el programa CITI permite a los pequeños municipios aprovechar las oportunidades de la economía digital para gestionar de manera más eficiente sus recursos y fomentar la cohesión territorial. Las ayudas incluyen la implantación de servicios tecnológicos, desarrollo de plataformas de datos abiertos, consultoría y formación del personal, además de campañas de difusión para involucrar a la ciudadanía y las empresas locales.
+
+Con estas actuaciones de ciudades inteligentes, la Junta refuerza su compromiso con la innovación tecnológica, promoviendo un equilibrio entre el desarrollo urbano y la sostenibilidad en toda Andalucía.
+Andalucía despliega su estrategia de ciudad inteligente con dos proyectos que suman una inversión pública de más de 27 M€
+smartlighting el 15 abril, 2025 en Smart Cities
+La Junta de Andalucía, a través de la Consejería de Universidad, Investigación e Innovación, impulsa actualmente dos proyectos clave en el ámbito de las ciudades inteligentes, orientados a la aplicación efectiva de tecnologías avanzadas en la gestión urbana. Con una inversión pública total de 27,1 millones de euros, respaldada por fondos europeos y articulada mediante una red de colaboración entre administraciones regionales, entidades locales y agentes tecnológicos, las iniciativas Línea CITI y eCitySevilla buscan desplegar infraestructuras digitales con un enfoque funcional, escalable y medible.
+
+Así lo ha puesto de relieve el secretario general de Investigación e Innovación de la Junta, Antonio Posadas, durante la celebración del comité técnico de la Red Española de Ciudades Inteligentes (RECI): “Las ciudades inteligentes representan un modelo de urbanismo y gestión municipal que integra tecnología de vanguardia para mejorar la calidad de vida de sus habitantes, optimizar los servicios urbanos y reducir los costes y el consumo energético”. Para ello, estas urbes utilizan Internet de las Cosas (IoT), la inteligencia artificial (IA), el big data y otras tecnologías para recoger y analizar datos en tiempo real, permitiendo así una gestión más eficiente de los recursos”.
+Málaga y Sevilla son las ciudades más inteligentes de toda Andalucía, ocupando el sexto y el decimosegundo puesto, respectivamente, en el ranking del Índice Smart Cities España 2023 (ISCE 2023). El ISCE 2023 es una innovadora herramienta creada por la consultoría especializada en procesos de transformación de ciudades y territorios IdenCity, que proporciona una evaluación del desempeño de las ciudades en términos de su grado de inteligencia. En este sentido, el índice analiza la capacidad de las ciudades españolas para adoptar y aprovechar las tecnologías de la información y la comunicación (TIC) para mejorar la calidad de vida de las personas, fomentar el crecimiento económico y promover el desarrollo sostenible. El proyecto ha contado con el apoyo del Ministerio de Derechos Sociales y Agenda 2030, Fundación ONCE, Cellnex, Citelum y MUBIL.
+
+Tras el análisis de un total de 138 indicadores en 58 ciudades españolas, incluyendo todas las capitales de provincia, el ISCE 2023 concluye que el cumplimiento medio obtenido por las ciudades andaluzas para alcanzar la categoría de Smart Cities se sitúa en un 52,9%. Un resultado por debajo de la media nacional (54,5%) que demuestra que los territorios de Andalucía incluidos en el índice tienen posibilidades de mejora en su proceso de desarrollo como ciudades inteligentes.
+
+Málaga, en el Top10 español de ciudades inteligentes
+La ciudad andaluza que cuenta con un mayor grado de cumplimiento para alcanzar el status de Smart City es Málaga (65,4%), que ocupa el sexto puesto del ranking nacional, por detrás de Barcelona (79,8%), Madrid (74,1%), Valencia (67,5%), San Sebastián (66,6%) y Bilbao (66%).
+
+En este sentido, Málaga obtiene la sexta posición en el ranking y destaca en diversos indicadores, como el grado de avance del plan estratégico Smart City de la ciudad, el alto porcentaje de energía eléctrica generada en plantas de tratamiento de residuos, la alta puntuación del Ayuntamiento en materia de transparencia y las aplicaciones locales de información y atención ciudadana.
+
+La segunda ciudad andaluza más inteligente del ranking global es Sevilla, que obtiene la decimosegunda posición y resalta en diversos indicadores, como el elevado número de hogares que cuentan con fibra óptica, la implementación de un plan de accesibilidad en la estrategia local de Smart City, el elevado grado de incentivación fiscal para favorecer la instalación de sistemas que permitan el autoconsumo energético a través del Impuesto sobre Bienes Inmuebles, y la baja tasa de concentración de dióxido de nitrógeno en el entorno local.
+
+“Málaga y Sevilla son un referente para el resto de las ciudades andaluzas, ya que obtienen resultados destacados en materia de sostenibilidad, gobernanza e infraestructura”, asegura Laura Moreno Segura, directora de consultoría de IdenCity. “Los tres son aspectos clave a la hora de evaluar la inteligencia de las ciudades”, añade.
+
+Del resto de ciudades andaluzas presentes en el Índice, Almería ocupa la 30ª posición, con un 53,6% de rendimiento; Granada y Córdoba obtienen la 34ª y 36ª posición con un 52,8% y un 52,4% de rendimiento, respectivamente. Huelva, por su parte, aparece en el ranking en la 46ª posición y un 47,2% de rendimiento y, finalmente, Cádiz y Jaén ocupan el 51º y 52º puesto con un rendimiento del 45,7% y del 45,4%.
+
+Las ciudades andaluzas despuntan en la adopción tecnológica
+Para realizar el estudio, IdenCity ha estructurado los indicadores en cinco dimensiones que analizan en profundidad los diversos componentes de las ciudades inteligentes: sus sociedades, a través de la dimensión ‘Sociedad inteligente’; sus economías, con la dimensión ‘Economía Inteligente’; la sostenibilidad, en ‘Sostenibilidad y medio ambiente’; sus gobiernos, a través de ‘Gobernanza’, y sus servicios de movilidad urbana, con ‘Infraestructuras y servicios de movilidad urbana’.
+
+Dentro de la dimensión ‘Sociedad Inteligente’, las ciudades andaluzas han destacado en la categoría ‘Adopción Tecnológica’, que analiza el grado de adopción de las Tecnologías de la Información y la Comunicación (TIC) por parte de la ciudadanía para llevar a cabo sus actividades diarias, así como del uso que hacen de las plataformas que permiten la operación digital de estos servicios.
+
+En este sentido, cuatro ciudades se sitúan en el Top10 del ranking de esta categoría. Córdoba es la ciudad andaluza mejor posicionada, colocándose en la cuarta posición y con un 79,2% del rendimiento. Le siguen Málaga, en la sexta posición y el 75,2% del rendimiento; Granada, en la octava posición y un 74,4%; y cierra el Top10 Sevilla, con un 74% de rendimiento.
+
+IdenCity
+IdenCity es una empresa de consultoría estratégica especializada en el desarrollo e implantación de planes estratégicos de desarrollo económico sostenible en entornos urbanos a través de una metodología propia que incorpora procesos innovadores, creativos y participativos. Trabaja para transformar ciudades y territorios, incrementando sus niveles de sostenibilidad y competitividad, y revirtiendo en la calidad de vida de la ciudadanía.
+La Junta de Andalucía impulsa dos proyectos de ciudades inteligentes con la colaboración de entidades locales
+
+
+La Consejería de Universidad, Investigación e Innovación tiene en desarrollo en Andalucía dos proyectos de ciudades inteligentes o 'smart cities' con una inyección pública de 27,1 millones de euros y la colaboración de ayuntamientos y entidades locales. Así lo ha puesto de relieve el secretario general de Investigación e Innovación de la Junta, Antonio Posadas, durante la celebración del comité técnico de la Red Española de Ciudades Inteligentes (RECI).
+
+Leer más: https://www.europapress.es/esandalucia/sevilla/noticia-junta-andalucia-impulsa-dos-proyectos-ciudades-inteligentes-colaboracion-entidades-locales-20250409115837.html
+
+(c) 2025 Europa Press. Está expresamente prohibida la redistribución y la redifusión de este contenido sin su previo y expreso consentimiento.
+Comienzan las primeras iniciativas andaluzas de ciudad y territorio inteligente de la Orden CITI
+Publicado: 08/01/2025
+
+Los primeros proyectos beneficiarios del programa de incentivos para fomentar el desarrollo de ciudades y territorios inteligentes de Andalucía (Orden CITI), que promueve la Consejería de Universidad, Investigación e Innovación de la Junta de Andalucía, han arrancado su ejecución. Se trata de la iniciativa ‘Sistema Smart Movilidad Gran Vega’, en la provincia de Sevilla, y la actuación ‘Puntos de recarga de vehículos eléctricos’, en la provincia de Málaga.
+La orden CITI permitirá el desarrollo de 21 proyectos que beneficiarán a 311 municipios de menos de 20.000 habitantes y a un total de 1,3 millones de habitantes de Andalucía. El conjunto de actuaciones contempladas se ha organizado en seis expedientes atendiendo a todos los ámbitos que conforman los actuales modelos de ciudades inteligentes: movilidad, bienestar, gobernanza, economía, entorno y plataforma. Cuenta con una dotación global de 9,25 millones de euros.
+
+Control de tráfico y recarga de vehículos eléctricos
+La iniciativa ‘Sistema Smart Movilidad Gran Vega’, que permitirá el despliegue de cámaras de control de tráfico y sistemas de calidad del aire en 12 municipios de Sevilla, está impulsado por el Ayuntamiento de Lora del Río. Beneficiará a una población de casi 120.000 habitantes de los municipios de Alcalá del Río, Alcolea del Río, La Algaba, Brenes, Burguillos, Cantillana, Guillena, Lora del Río, Peñaflor, Tocina, Villananueva del Río y Minas y Villaverde del Río.
+
+Las actuaciones subvencionadas se dividen en dos lotes, cuyos contratos han sido formalizados por la Sociedad Andaluza para el Desarrollo de las Telecomunicaciones (Sandetel), medio propio de la Junta. El primero de ellos, de servicios de consultoría y asistencia técnica a las entidades, ha sido adjudicado a la UTE CARSA-CBT (Consultores de Automatización y Robótica), mientras que el segundo se ha asignado a Innovasur (Innovaciones Tecnológicas del Sur).
+
+Por su parte, la iniciativa ‘Puntos de recarga de vehículos eléctricos’, representada por la Diputación de Málaga, favorecerá a una población estimada de 115.597 habitantes de 28 municipios de la provincia malagueña, con el despliegue de 30 puntos de recarga. El contrato ha sido adjudicado a la empresa ACTISA (Actividades de Consultoría Técnica, Investigación y Servicios Avanzados S.L.).
+
+Proyectos de los ámbitos de economía y entorno inteligentes
+La Consejería de Universidad, Investigación e Innovación ha licitado también los expedientes para los proyectos del ámbito de economía inteligente y entorno inteligente acogidos a esta línea de ayudas, el cuarto y quinto, respectivamente, tras licitar los proyectos de movilidad, bienestar y gobernanza. El plazo de recepción de ofertas estará abierto hasta el próximo 27 de enero, en el caso de economía, y hasta el 17 de febrero, en el de entorno.
+
+El cuarto expediente se divide en dos lotes como son el proyecto ‘Pozoblanco Slow Turismo’, una iniciativa grupal liderada por el Ayuntamiento de Pozoblanco (Córdoba) para la consultoría y generación de contenidos digitales, turismo inteligente y sistemas de cartelería digital y monitorización de plazas de aparcamiento; y un segundo titulado ‘Jaén Territorio Inteligente’, impulsado por la Diputación jiennense, para la mejora de la red wifi, los sistemas de administración del comercio y el marketing de proximidad o los inventarios de activos municipales.
+
+El quinto expediente, vinculado con el entorno inteligente, está conformado por seis lotes. El primero de ellos engloba los proyectos ‘Córdoba Distrito Smart Zona Sur’ y ‘Córdoba Distrito Smart Zona Norte’, que bajo la modalidad de agrupación lidera la Diputación de Córdoba para sistemas de riego inteligente, sistemas de proximidad o gestión energética; mientras que el segundo, con la Diputación de Almería como entidad representante, va dirigido a la sensorización de la red de abastecimiento de aguas. El tercero, también en modalidad grupal, lo lidera el Ayuntamiento de Rus (Jaén) para consultoría estratégica y sistema de sensorización de edificios. Este mismo consistorio representa también al lote seis para el desarrollo e implantación de un sistema de riego inteligente.
+
+Por su parte, los lotes cuarto y quinto se ajustan a la modalidad de ayuda individual. Son un proyecto presentado por el Ayuntamiento de Begíjar (Jaén) para la red de telecomunicaciones básicas, la red loT o sistemas inteligentes de gestión; y otro del Ayuntamiento de Huéscar (Granada) para la instauración del sistema de gestión de infraestructuras de la iluminación de exterior. El sexto expediente, correspondiente a plataforma, se publicará en las próximas semanas.
