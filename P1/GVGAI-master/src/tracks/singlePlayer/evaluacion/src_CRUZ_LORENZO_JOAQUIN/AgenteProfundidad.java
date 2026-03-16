@@ -1,6 +1,7 @@
 package tracks.singlePlayer.evaluacion.src_CRUZ_LORENZO_JOAQUIN;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Stack;
 
@@ -8,27 +9,27 @@ import core.game.StateObservation;
 import core.player.AbstractPlayer;
 import ontology.Types.ACTIONS;
 import tools.ElapsedCpuTimer;
-import tools.Vector2d;
 
 /**
  * Agente basado en Búsqueda en Profundidad (DFS - no informada).
+ * Optimizado para el entorno GVGAI (evita bloqueos de llaves, catapultas y Timeouts).
  */
 public class AgenteProfundidad extends AbstractPlayer {
 
     // Aquí guardaremos la secuencia de acciones que nos lleva a la victoria
     private ArrayList<ACTIONS> planDeAccion;
-    
+
     /**
-     * Constructor del agente. Aquí ejecutamos la búsqueda OFFLINE.
+     * Constructor del agente. Aquí ejecutamos la búsqueda OFFLINE antes de que empiece el juego.
      */
     public AgenteProfundidad(StateObservation stateObs, ElapsedCpuTimer elapsedTimer) {
         planDeAccion = new ArrayList<>();
-        
+
         System.out.println("Iniciando Búsqueda en Profundidad (DFS)...");
-        
-        // Llamamos a nuestro método de búsqueda
+
+        // Llamamos a nuestro método de búsqueda principal
         Nodo nodoDestino = buscarRutaDFS(stateObs);
-        
+
         // Si hemos encontrado el portal, reconstruimos el camino
         if (nodoDestino != null) {
             construirPlan(nodoDestino);
@@ -39,50 +40,51 @@ public class AgenteProfundidad extends AbstractPlayer {
     }
 
     /**
-     * Algoritmo DFS puro.
+     * Algoritmo DFS puro con protección contra Timeout en la simulación.
      */
     private Nodo buscarRutaDFS(StateObservation estadoInicial) {
-        // 1. Inicializamos la Frontera (LIFO - Pila) y los Visitados
+        // Frontera tipo Pila (LIFO) para la Búsqueda en Profundidad
         Stack<Nodo> frontera = new Stack<>();
+        
+        // Mapa de visitados: guarda el ID del estado y el COSTE en el que llegamos
         HashSet<String> visitados = new HashSet<>();
 
-        // 2. Creamos el nodo raíz y lo metemos en la frontera
+        // Creamos el nodo raíz y lo metemos en la frontera
         Nodo raiz = new Nodo(estadoInicial);
         frontera.push(raiz);
 
-        // 3. Bucle principal de búsqueda
         while (!frontera.isEmpty()) {
             
-            // Sacamos el último nodo insertado (comportamiento en profundidad)
+            // Sacamos el último nodo insertado
             Nodo actual = frontera.pop();
             StateObservation estadoActual = actual.estado;
 
-            // A) ¿Hemos ganado o perdido en este estado?
+            // A) ¿Hemos ganado o perdido en esta simulación?
             if (estadoActual.isGameOver()) {
                 if (estadoActual.getGameWinner() == ontology.Types.WINNER.PLAYER_WINS) {
-                    return actual; // ¡Encontramos el portal de salida!
+                    return actual; // ¡Solución encontrada! Devolvemos el nodo meta
                 } else {
-                    continue; // Si hemos muerto (ej: caímos al agua), descartamos este camino y seguimos buscando
+                    continue; // Morimos o nos quedamos sin tiempo; podamos esta rama
                 }
             }
 
-            // B) Control de Visitados
+            // B) Control de Visitados INTELIGENTE
             String idEstado = generarIdEstado(estadoActual);
             if (visitados.contains(idEstado)) {
-                continue; // Si ya hemos estado aquí en las mismas condiciones, lo saltamos
+                continue;
             }
-            visitados.add(idEstado); // Lo marcamos como visitado
+            visitados.add(idEstado);
+            
 
             // C) Expansión: Obtener acciones posibles y simular el futuro
             ArrayList<ACTIONS> accionesPosibles = estadoActual.getAvailableActions();
             for (ACTIONS accion : accionesPosibles) {
                 
-                // Excluimos la acción NIL (quedarse quieto) porque en un laberinto estático no nos ayuda
-                if (accion == ACTIONS.ACTION_NIL) continue;
-
-                // Aplicamos el Forward Model de GVGAI
+                // NOTA: NO ignoramos ACTION_NIL porque al pisar una catapulta, 
+                // el agente sale volando y la única acción permitida durante el vuelo es NIL.
+                
                 StateObservation estadoHijo = estadoActual.copy();
-                estadoHijo.advance(accion);
+                estadoHijo.advance(accion); // El motor simula qué pasaría al aplicar la acción
 
                 // Creamos el nodo hijo y lo metemos en la pila
                 Nodo hijo = new Nodo(estadoHijo, actual, accion, actual.coste + 1);
@@ -90,46 +92,86 @@ public class AgenteProfundidad extends AbstractPlayer {
             }
         }
         
-        return null; // Si se vacía la pila y no hemos devuelto nada, es que no hay solución
+        return null; // Solo devolverá null si la pila se vacía y es imposible ganar
     }
 
-    /**
-     * Genera un String único para cada estado basado en la posición y el inventario.
-     * Ejemplo: "5_12_1" (X=5, Y=12, Llaves=1)
-     */
     private String generarIdEstado(StateObservation estado) {
         tools.Vector2d pos = estado.getAvatarPosition();
-        
-        // Contamos cuántos recursos (llaves) tenemos en el inventario
-        int numRecursos = 0;
-        java.util.HashMap<Integer, Integer> inventario = estado.getAvatarResources();
-        if (inventario != null) {
-            for (Integer cantidad : inventario.values()) {
-                numRecursos += cantidad;
+        if (pos == null) return "muerto";
+
+        double blockSizeX = estado.getWorldDimension().width / estado.getObservationGrid().length;
+        double blockSizeY = estado.getWorldDimension().height / estado.getObservationGrid()[0].length;
+
+        int x = (int) (pos.x / blockSizeX);
+        int y = (int) (pos.y / blockSizeY);
+
+        tools.Vector2d ori = estado.getAvatarOrientation();
+        String orientacion = (ori != null) ? ((int) ori.x + "_" + (int) ori.y) : "0_0";
+
+        int tipoAvatar = estado.getAvatarType();
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("P:").append(x).append(",").append(y);
+        sb.append("|O:").append(orientacion);
+        sb.append("|T:").append(tipoAvatar);
+
+        // Inventario
+        sb.append("|INV:");
+        if (estado.getAvatarResources() != null) {
+            for (Integer k : estado.getAvatarResources().keySet()) {
+                sb.append(k).append("=").append(estado.getAvatarResources().get(k)).append(";");
             }
         }
-        
-        // Formateamos las coordenadas al bloque de la cuadrícula
-        int x = (int) (pos.x / estado.getBlockSize());
-        int y = (int) (pos.y / estado.getBlockSize());
-        
-        return x + "_" + y + "_" + numRecursos;
-    }
 
+        // Recursos restantes: monedas, llave...
+        sb.append("|R:");
+        if (estado.getResourcesPositions() != null) {
+            for (int i = 0; i < estado.getResourcesPositions().length; i++) {
+                if (estado.getResourcesPositions()[i] != null) {
+                    sb.append(i).append("[");
+                    for (core.game.Observation obs : estado.getResourcesPositions()[i]) {
+                        int rx = (int) (obs.position.x / blockSizeX);
+                        int ry = (int) (obs.position.y / blockSizeY);
+                        sb.append(rx).append(",").append(ry).append(";");
+                    }
+                    sb.append("]");
+                }
+            }
+        }
+
+        // Inmovibles restantes: puerta, catapultas, muros...
+        sb.append("|I:");
+        if (estado.getImmovablePositions() != null) {
+            for (int i = 0; i < estado.getImmovablePositions().length; i++) {
+                if (estado.getImmovablePositions()[i] != null) {
+                    sb.append(i).append("[");
+                    for (core.game.Observation obs : estado.getImmovablePositions()[i]) {
+                        int ix = (int) (obs.position.x / blockSizeX);
+                        int iy = (int) (obs.position.y / blockSizeY);
+                        sb.append(ix).append(",").append(iy).append(";");
+                    }
+                    sb.append("]");
+                }
+            }
+        }
+
+        return sb.toString();
+    }
+    
     /**
      * Reconstruye el camino desde el nodo final hasta la raíz siguiendo a los padres.
      */
     private void construirPlan(Nodo nodoFinal) {
         Nodo actual = nodoFinal;
-        // Apilamos las acciones (porque vamos del final al principio)
         Stack<ACTIONS> pilaAcciones = new Stack<>();
         
+        // Subimos por el árbol desde la meta hasta el inicio
         while (actual.padre != null) {
             pilaAcciones.push(actual.accion);
             actual = actual.padre;
         }
         
-        // Vaciamos la pila en nuestra lista de plan (para que queden en orden desde el inicio)
+        // Vaciamos la pila en nuestra lista para que queden en el orden correcto
         while (!pilaAcciones.isEmpty()) {
             planDeAccion.add(pilaAcciones.pop());
         }
@@ -140,7 +182,7 @@ public class AgenteProfundidad extends AbstractPlayer {
      */
     @Override
     public ACTIONS act(StateObservation stateObs, ElapsedCpuTimer elapsedTimer) {
-        // Si tenemos acciones en nuestro plan, sacamos la primera y la borramos de la lista
+        // Si tenemos acciones en nuestro plan calculado, ejecutamos la primera y la borramos
         if (planDeAccion != null && !planDeAccion.isEmpty()) {
             return planDeAccion.remove(0);
         }
