@@ -1,10 +1,6 @@
 package tracks.singlePlayer.evaluacion.src_CRUZ_LORENZO_JOAQUIN;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.PriorityQueue;
-import java.util.Stack;
-
+import java.util.*;
 import core.game.Observation;
 import core.game.StateObservation;
 import core.player.AbstractPlayer;
@@ -14,253 +10,296 @@ import tools.Vector2d;
 import tracks.singlePlayer.MetricsProvider;
 
 /**
- * Agente basado en Búsqueda A* (A-Estrella Ponderado).
- * Implementa "Poda Maestra +1" para tolerar retardos de físicas (1 tick)
- * bloqueando matemáticamente los bucles espaciales.
+ * Agente A* — Práctica 1 TSI (UGR 2025-26)
+ *
+ *   FASE 1 – Búsqueda A* en el constructor.
+ *            Las catapultas se agrupan como una transición:
+ *              pisar (1 tick) + transformación (1 NIL) + vuelo (N NILs) + retransformación (1 NIL)
+ *            Se detecta el fin del vuelo cuando avatarType vuelve al tipo original.
+ *
+ *   FASE 2 – act() devuelve acciones precalculadas.
+ *
+ * Mecánica de catapulta (confirmada por debug):
+ *   ACTION_DOWN a (2,3): type cambia de 9→12, monedas bajan. Posición = catapulta.
+ *   NIL#1:  type=12, pos sin cambio (transformación)
+ *   NIL#2–10: type=12, pos avanza 1 celda/tick (vuelo)
+ *   NIL#10: type=12, pos=(2,12), puedeMover=false (aterrizando, aún murciélago)
+ *   NIL#11: type=9, pos=(2,12), puedeMover=true  ← CORTE CORRECTO
  */
 public class AgenteAStar extends AbstractPlayer {
 
-    private ArrayList<ACTIONS> planDeAccion;
-    private PriorityQueue<Nodo> frontera;
-    private HashMap<String, Double> visitados; 
-    
-    private boolean buscando;
-    private boolean metricasEnviadas;
-    
-    private int nodosExpandidos;
-    private int profundidadMaxima;
+    private int blockSize;
+    private int metaX, metaY;
+    private ArrayList<ACTIONS> plan = new ArrayList<>();
+    private int nodosExpandidos = 0, profMax = 0;
 
-    private class Nodo implements Comparable<Nodo> {
-        StateObservation estado;
-        Nodo padre;
-        ACTIONS accion;
-        double coste;      // g(n)
-        double heuristica; // h(n)
-        int profundidad;
-
-        public Nodo(StateObservation estado, Nodo padre, ACTIONS accion, double coste, double heuristica, int profundidad) {
-            this.estado = estado;
-            this.padre = padre;
-            this.accion = accion;
-            this.coste = coste;
-            this.heuristica = heuristica;
-            this.profundidad = profundidad;
-        }
-
-        @Override
-        public int compareTo(Nodo otro) {
-            double miF = this.coste + this.heuristica;
-            double otroF = otro.coste + otro.heuristica;
-            return Double.compare(miF, otroF);
-        }
-    }
-
-    public AgenteAStar(StateObservation stateObs, ElapsedCpuTimer elapsedTimer) {
+    // =========================================================
+    //  CONSTRUCTOR — ejecuta A* completo
+    // =========================================================
+    public AgenteAStar(StateObservation so, ElapsedCpuTimer timer) {
         super();
-        planDeAccion = new ArrayList<>();
-        frontera = new PriorityQueue<>();
-        visitados = new HashMap<>();
-        
-        buscando = true;
-        metricasEnviadas = false;
-        nodosExpandidos = 0;
-        profundidadMaxima = 0;
+        blockSize = so.getBlockSize();
 
-        double hInicial = calcularHeuristica(stateObs);
-        Nodo raiz = new Nodo(stateObs, null, ACTIONS.ACTION_NIL, 0, hInicial, 0);
-        frontera.add(raiz);
-        
-        System.out.println("Agente A* instanciado. Listo para búsqueda asíncrona experta...");
+        ArrayList<Observation>[] portales = so.getPortalsPositions();
+        if (portales != null && portales.length > 0 && !portales[0].isEmpty()) {
+            metaX = gridX(portales[0].get(0).position);
+            metaY = gridY(portales[0].get(0).position);
+        }
+
+        System.out.println("AgenteAStar inicializado. Meta: (" + metaX + "," + metaY + ")");
+        plan = buscarAStar(so);
     }
 
+    // =========================================================
+    //  ACT
+    // =========================================================
     @Override
-    public ACTIONS act(StateObservation stateObs, ElapsedCpuTimer elapsedTimer) {
-        if (buscando) {
-            buscarRutaAsincrona(elapsedTimer);
-        }
-
-        if (!buscando && planDeAccion != null && !planDeAccion.isEmpty()) {
-            return planDeAccion.remove(0);
-        }
-        
-        return ACTIONS.ACTION_NIL; 
+    public ACTIONS act(StateObservation so, ElapsedCpuTimer timer) {
+        if (plan.isEmpty()) return ACTIONS.ACTION_NIL;
+        return plan.remove(0);
     }
 
-    private void buscarRutaAsincrona(ElapsedCpuTimer elapsedTimer) {
-        Nodo nodoDestino = null;
+    // =========================================================
+    //  FASE 1: BÚSQUEDA A*
+    // =========================================================
+    private ArrayList<ACTIONS> buscarAStar(StateObservation soInicial) {
 
-        while (!frontera.isEmpty()) {
-            
-            if (frontera.size() > 8000 || nodosExpandidos > 30000) {
-                System.out.println("¡Alerta! Límite de seguridad alcanzado. Abortando...");
+        PriorityQueue<Nodo> abiertos = new PriorityQueue<>();
+        HashMap<String, Nodo> abiertosMapa = new HashMap<>();
+        HashMap<String, Nodo> cerrados = new HashMap<>();
+
+        Nodo nodoInicial = new Nodo(soInicial, null, null, 0,
+                                    heuristica(soInicial), 0);
+        String k0 = stateKey(soInicial);
+        abiertos.add(nodoInicial);
+        abiertosMapa.put(k0, nodoInicial);
+
+        Nodo meta = null;
+
+        while (!abiertos.isEmpty()) {
+            Nodo actual = abiertos.poll();
+
+            // Lazy deletion
+            if (actual.obsoleto) continue;
+            String keyActual = stateKey(actual.so);
+            Nodo enMapa = abiertosMapa.get(keyActual);
+            if (enMapa != actual) continue;
+            abiertosMapa.remove(keyActual);
+
+            nodosExpandidos++;
+            if (actual.prof > profMax) profMax = actual.prof;
+
+            // ¿Victoria?
+            if (actual.so.getGameWinner() == ontology.Types.WINNER.PLAYER_WINS) {
+                meta = actual;
                 break;
             }
 
-            if (elapsedTimer.remainingTimeMillis() < 5) return; 
+            // Mover a cerrados
+            cerrados.put(keyActual, actual);
 
-            Nodo actual = frontera.poll();
-            nodosExpandidos++;
-            
-            if (actual.profundidad > profundidadMaxima) {
-                profundidadMaxima = actual.profundidad;
-            }
+            // Expandir
+            int avatarTypeActual = actual.so.getAvatarType();
+            int monedasActual = actual.so.getAvatarResources().getOrDefault(15, 0);
+            Vector2d posActual = actual.so.getAvatarPosition();
+            int gxAct = gridX(posActual), gyAct = gridY(posActual);
 
-            StateObservation estadoActual = actual.estado;
+            ACTIONS[] dirs = {ACTIONS.ACTION_RIGHT, ACTIONS.ACTION_LEFT,
+                              ACTIONS.ACTION_UP,    ACTIONS.ACTION_DOWN};
 
-            if (estadoActual.isGameOver()) {
-                if (estadoActual.getGameWinner() == ontology.Types.WINNER.PLAYER_WINS) {
-                    nodoDestino = actual; 
-                    break; 
-                } else {
-                    actual.estado = null; 
-                    continue; 
+            for (ACTIONS dir : dirs) {
+                StateObservation copia = actual.so.copy();
+                copia.advance(dir);
+
+                // Muerto → descartar
+                if (copia.isGameOver() &&
+                    copia.getGameWinner() != ontology.Types.WINNER.PLAYER_WINS)
+                    continue;
+
+                ArrayList<ACTIONS> acciones = new ArrayList<>();
+                acciones.add(dir);
+                int coste = 1;
+
+                // ¿Catapulta activada?
+                // Detección: el tipo del avatar cambió (vampiro 9 → murciélago 12)
+                // y las monedas bajaron
+                if (!copia.isGameOver()) {
+                    int monedasDespues = copia.getAvatarResources().getOrDefault(15, 0);
+                    int avatarTypeDespues = copia.getAvatarType();
+
+                    boolean catapulta = (avatarTypeDespues != avatarTypeActual)
+                        && (monedasDespues < monedasActual);
+
+                    if (catapulta) {
+                        // Simular vuelo con NILs hasta que el avatar
+                        // vuelva a su tipo original (retransformación completa)
+                        for (int t = 0; t < 30; t++) {
+                            copia.advance(ACTIONS.ACTION_NIL);
+                            acciones.add(ACTIONS.ACTION_NIL);
+                            coste++;
+
+                            if (copia.isGameOver()) break;
+
+                            // Corte: el avatar volvió a su tipo original
+                            if (copia.getAvatarType() == avatarTypeActual) {
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // Victoria
+                if (copia.getGameWinner() == ontology.Types.WINNER.PLAYER_WINS) {
+                    meta = new Nodo(copia, actual, acciones,
+                                    actual.g + coste, 0, actual.prof + 1);
+                    break;
+                }
+
+                // Muerto tras vuelo → descartar
+                if (copia.isGameOver()) continue;
+
+                String keySuc = stateKey(copia);
+                int gNuevo = actual.g + coste;
+
+                // Caso 1: en cerrados con mejor g → reabrir
+                Nodo enCerr = cerrados.get(keySuc);
+                if (enCerr != null) {
+                    if (gNuevo < enCerr.g) {
+                        cerrados.remove(keySuc);
+                        Nodo ns = new Nodo(copia, actual, acciones, gNuevo,
+                                           heuristica(copia), actual.prof + 1);
+                        abiertos.add(ns);
+                        abiertosMapa.put(keySuc, ns);
+                    }
+                    continue;
+                }
+
+                // Caso 2: no en abiertos ni cerrados → añadir
+                Nodo enAb = abiertosMapa.get(keySuc);
+                if (enAb == null) {
+                    Nodo ns = new Nodo(copia, actual, acciones, gNuevo,
+                                       heuristica(copia), actual.prof + 1);
+                    abiertos.add(ns);
+                    abiertosMapa.put(keySuc, ns);
+                }
+                // Caso 3: en abiertos con peor g → actualizar
+                else if (gNuevo < enAb.g) {
+                    enAb.obsoleto = true;
+                    Nodo ns = new Nodo(copia, actual, acciones, gNuevo,
+                                       heuristica(copia), actual.prof + 1);
+                    abiertos.add(ns);
+                    abiertosMapa.put(keySuc, ns);
                 }
             }
-
-            boolean isFlying = (estadoActual.getAvatarPosition() == null);
-            ArrayList<ACTIONS> accionesPosibles = estadoActual.getAvailableActions();
-            if (isFlying) {
-                accionesPosibles = new ArrayList<>();
-                accionesPosibles.add(ACTIONS.ACTION_NIL);
-            }
-
-            for (ACTIONS accion : accionesPosibles) {
-                StateObservation estadoHijo = estadoActual.copy();
-                estadoHijo.advance(accion);
-
-                double nuevoCoste = actual.coste + 1;
-                String idHijo = generarIdEstado(estadoHijo); 
-                boolean hijoFlying = (estadoHijo.getAvatarPosition() == null);
-
-                if (!hijoFlying) {
-                    double costeAnterior = visitados.containsKey(idHijo) ? visitados.get(idHijo) : Double.MAX_VALUE;
-                    
-                    // LA PODA MAESTRA DE +1:
-                    // Permite esperar 1 tick para físicas (ej: pulsar USE en la catapulta).
-                    // Pero prohíbe volver atrás (porque A -> B -> A cuesta 2 ticks y será podado).
-                    if (nuevoCoste > costeAnterior + 1) {
-                        continue; 
-                    }
-                    
-                    // Solo guardamos el récord en la memoria si es estrictamente mejor
-                    if (nuevoCoste < costeAnterior) {
-                        visitados.put(idHijo, nuevoCoste);
-                    }
-                }
-                
-                double nuevaHeuristica = calcularHeuristica(estadoHijo);
-                Nodo hijo = new Nodo(estadoHijo, actual, accion, nuevoCoste, nuevaHeuristica, actual.profundidad + 1);
-                frontera.add(hijo);
-            }
-            
-            actual.estado = null; 
+            if (meta != null) break;
         }
-        
-        buscando = false; 
 
-        if (nodoDestino != null) {
-            construirPlan(nodoDestino);
-            System.out.println("¡Ruta A* encontrada! Pasos a dar: " + planDeAccion.size());
+        // ── FASE 2: Decodificar nodos → acciones ──
+        ArrayList<ACTIONS> resultado = new ArrayList<>();
+        if (meta != null) {
+            Deque<Nodo> pila = new ArrayDeque<>();
+            for (Nodo n = meta; n.padre != null; n = n.padre) pila.push(n);
+            while (!pila.isEmpty()) {
+                Nodo n = pila.pop();
+                if (n.accionesDesdeParent != null)
+                    resultado.addAll(n.accionesDesdeParent);
+            }
+            System.out.println("Plan encontrado: " + resultado.size() + " acciones.");
         } else {
-            System.out.println("Búsqueda A* agotada o abortada por seguridad.");
+            System.out.println("No se encontró solución.");
         }
 
-        if (!metricasEnviadas) {
-            MetricsProvider metrics = MetricsProvider.getInstance();
-            metrics.setNodosExpandidos(nodosExpandidos);
-            metrics.setProfundidadMaxima(profundidadMaxima);
-            metrics.setNodosAbiertos(frontera.size());
-            metrics.setNodosCerrados(visitados.size());
-            metrics.setNumAccionesPlan(nodoDestino != null ? planDeAccion.size() : -1);
-            metrics.printMetrics();
-            metricasEnviadas = true;
-        }
+        // Métricas
+        MetricsProvider mp = MetricsProvider.getInstance();
+        mp.setNodosExpandidos(nodosExpandidos);
+        mp.setProfundidadMaxima(profMax);
+        mp.setNodosAbiertos(abiertosMapa.size());
+        mp.setNodosCerrados(cerrados.size());
+        mp.setNumAccionesPlan(meta != null ? resultado.size() : -1);
+        mp.printMetrics();
+
+        return resultado;
     }
 
-    /**
-     * HEURÍSTICA PONDERADA (A* Agresivo x10).
-     */
-    private double calcularHeuristica(StateObservation estado) {
-        Vector2d posAvatar = estado.getAvatarPosition();
-        if (posAvatar == null) return 0; // Atajo absoluto: volar es bueno
+    // =========================================================
+    //  HEURÍSTICA
+    // =========================================================
+    private double heuristica(StateObservation so) {
+        Vector2d pos = so.getAvatarPosition();
+        int gx = gridX(pos), gy = gridY(pos);
 
-        double distanciaMinima = 10000;
-        double blockSize = estado.getBlockSize();
-
-        ArrayList<Observation>[] portales = estado.getPortalsPositions();
-        if (portales != null) {
-            for (ArrayList<Observation> lista : portales) {
+        ArrayList<Observation>[] rec = so.getResourcesPositions();
+        if (rec != null) {
+            for (ArrayList<Observation> lista : rec) {
                 for (Observation obs : lista) {
-                    double dist = Math.abs(posAvatar.x - obs.position.x) + Math.abs(posAvatar.y - obs.position.y);
-                    if (dist < distanciaMinima) distanciaMinima = dist;
+                    if (obs.itype == 16) {
+                        int lx = gridX(obs.position);
+                        int ly = gridY(obs.position);
+                        return Math.abs(gx - lx) + Math.abs(gy - ly)
+                             + Math.abs(lx - metaX) + Math.abs(ly - metaY);
+                    }
                 }
             }
         }
-        if (distanciaMinima != 10000) return (distanciaMinima / blockSize) * 10.0;
+        return Math.abs(gx - metaX) + Math.abs(gy - metaY);
+    }
 
-        ArrayList<Observation>[] recursos = estado.getResourcesPositions();
-        if (recursos != null) {
-            for (ArrayList<Observation> lista : recursos) {
+    // =========================================================
+    //  CLAVE DE ESTADO
+    // =========================================================
+    private String stateKey(StateObservation so) {
+        Vector2d pos = so.getAvatarPosition();
+        int gx = gridX(pos), gy = gridY(pos);
+        int monedas = so.getAvatarResources().getOrDefault(15, 0);
+
+        long resBits = 0;
+        ArrayList<Observation>[] rec = so.getResourcesPositions();
+        if (rec != null) {
+            for (ArrayList<Observation> lista : rec) {
                 for (Observation obs : lista) {
-                    double dist = Math.abs(posAvatar.x - obs.position.x) + Math.abs(posAvatar.y - obs.position.y);
-                    if (dist < distanciaMinima) distanciaMinima = dist;
+                    int rx = gridX(obs.position);
+                    int ry = gridY(obs.position);
+                    resBits |= (1L << ((ry * 16 + rx) & 63));
                 }
             }
         }
-        if (distanciaMinima != 10000) return (distanciaMinima / blockSize) * 10.0;
-
-        return 0; 
+        return gx + "," + gy + "," + monedas + "," + resBits;
     }
 
-    /**
-     * Identificador Puro de Estado (Sin acciones pasadas).
-     */
-    private String generarIdEstado(StateObservation estado) {
-        Vector2d pos = estado.getAvatarPosition();
-        if (pos == null) return "volando_catapulta"; 
-        
-        StringBuilder id = new StringBuilder();
-        id.append(pos.x).append("_").append(pos.y).append("_");
-        
-        Vector2d ori = estado.getAvatarOrientation();
-        if (ori != null) id.append(ori.x).append("_").append(ori.y).append("_");
-        
-        id.append(estado.getAvatarType()).append("_");
-        
-        appendObs(id, estado.getImmovablePositions());
-        appendObs(id, estado.getMovablePositions());
-        appendObs(id, estado.getResourcesPositions());
-        appendObs(id, estado.getNPCPositions());
-        appendObs(id, estado.getPortalsPositions());
-        appendObs(id, estado.getFromAvatarSpritesPositions()); 
-        
-        if (estado.getAvatarResources() != null) {
-            for (Integer key : estado.getAvatarResources().keySet()) {
-                id.append(key).append("=").append(estado.getAvatarResources().get(key)).append("_");
-            }
-        }
-        return id.toString();
-    }
+    // =========================================================
+    //  UTILIDADES
+    // =========================================================
+    private int gridX(Vector2d pos) { return (int)(pos.x / blockSize); }
+    private int gridY(Vector2d pos) { return (int)(pos.y / blockSize); }
 
-    private void appendObs(StringBuilder sb, ArrayList<Observation>[] obsArrays) {
-        if (obsArrays != null) {
-            for (ArrayList<Observation> list : obsArrays) {
-                for (Observation obs : list) {
-                    sb.append(obs.itype).append("-").append(obs.position.x).append("-").append(obs.position.y).append("_");
-                }
-            }
-        }
-    }
+    // =========================================================
+    //  NODO A*
+    // =========================================================
+    private static class Nodo implements Comparable<Nodo> {
+        StateObservation so;
+        Nodo padre;
+        ArrayList<ACTIONS> accionesDesdeParent;
+        int g, prof;
+        double h;
+        boolean obsoleto = false;
 
-    private void construirPlan(Nodo nodoFinal) {
-        Nodo actual = nodoFinal;
-        Stack<ACTIONS> pilaAcciones = new Stack<>();
-        while (actual.padre != null) {
-            pilaAcciones.push(actual.accion);
-            actual = actual.padre;
+        Nodo(StateObservation so, Nodo padre, ArrayList<ACTIONS> acciones,
+             int g, double h, int prof) {
+            this.so = so;
+            this.padre = padre;
+            this.accionesDesdeParent = acciones;
+            this.g = g;
+            this.h = h;
+            this.prof = prof;
         }
-        while (!pilaAcciones.isEmpty()) {
-            planDeAccion.add(pilaAcciones.pop());
+
+        double f() { return g + h; }
+
+        @Override
+        public int compareTo(Nodo o) {
+            double f1 = f(), f2 = o.f();
+            if (f1 != f2) return Double.compare(f1, f2);
+            return Double.compare(h, o.h);
         }
     }
 }
