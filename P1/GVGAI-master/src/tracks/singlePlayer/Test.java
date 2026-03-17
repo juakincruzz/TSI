@@ -45,8 +45,8 @@ public class Test {
 		String game = games[gameIdx][0];
 		String level1 = game.replace(gameName, gameName + "_lvl" + levelIdx);
 
-		String recordActionsFile = null;// "actions_" + games[gameIdx] + "_lvl" /* Puedo ver las acciones del agente */
-						// + levelIdx + "_" + seed + ".txt";
+		String recordActionsFile = "actions_" + games[gameIdx] + "_lvl" /* Puedo ver las acciones del agente */
+						 + levelIdx + "_" + seed + ".txt";
 						// where to record the actions
 						// executed. null if not to save.
 
@@ -55,7 +55,7 @@ public class Test {
 
 		// 2. This plays a game in a level by the controller.
 //		ArcadeMachine.runOneGame(game, level1, visuals, sampleRHEAController, recordActionsFile, seed, 0);
-		// ArcadeMachine.runOneGame(game, level1, visuals, agentName, recordActionsFile, seed, levelIdx) ;
+		 ArcadeMachine.runOneGame(game, level1, visuals, agentName, recordActionsFile, seed, levelIdx) ;
 
 		// 3. This replays a game from an action file previously recorded
 	//	 String readActionsFile = recordActionsFile;
