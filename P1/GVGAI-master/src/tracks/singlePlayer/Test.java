@@ -26,7 +26,7 @@ public class Test {
 		String sampleOLETSController = "tracks.singlePlayer.advanced.olets.Agent";
 
 		// Mi agente de Depth First Search
-		String miAgenteDFS = "tracks.singlePlayer.evaluacion.src_CRUZ_LORENZO_JOAQUIN.AgenteProfundidad";
+		String miAgenteDFS = "tracks.singlePlayer.evaluacion.src_CRUZ_LORENZO_JOAQUIN.AgenteAStar";
 
 		String agentName = miAgenteDFS; // <- Le decimos al motor que use el mio
 
@@ -55,7 +55,7 @@ public class Test {
 
 		// 2. This plays a game in a level by the controller.
 //		ArcadeMachine.runOneGame(game, level1, visuals, sampleRHEAController, recordActionsFile, seed, 0);
-		 ArcadeMachine.runOneGame(game, level1, visuals, agentName, recordActionsFile, seed, levelIdx) ;
+		ArcadeMachine.runOneGame(game, level1, visuals, agentName, recordActionsFile, seed, levelIdx) ;
 
 		// 3. This replays a game from an action file previously recorded
 	//	 String readActionsFile = recordActionsFile;
