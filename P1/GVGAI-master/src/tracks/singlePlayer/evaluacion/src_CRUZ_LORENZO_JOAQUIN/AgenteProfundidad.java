@@ -1,229 +1,255 @@
 package tracks.singlePlayer.evaluacion.src_CRUZ_LORENZO_JOAQUIN;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Stack;
-
+import java.util.*;
+import core.game.Observation;
 import core.game.StateObservation;
 import core.player.AbstractPlayer;
 import ontology.Types.ACTIONS;
 import tools.ElapsedCpuTimer;
+import tools.Vector2d;
 import tracks.singlePlayer.MetricsProvider;
 
 /**
- * Agente basado en Búsqueda en Profundidad (DFS).
- * Implementa BÚSQUEDA ASÍNCRONA (Time-Bounded) para evitar bloqueos por Timeout.
- * Incluye mapeo topográfico absoluto y memoria de 1 tick para evitar la Poda Ciega en GVGAI.
+ * Agente DFS — Práctica 1 TSI (UGR 2025-26)
+ *
+ * Búsqueda en profundidad iterativa con pila (Stack).
+ * Reutiliza la misma infraestructura del A*:
+ *   - Misma clave de estado (posición + monedas + recursos en mapa)
+ *   - Misma agrupación de catapultas (pisar + vuelo NIL = una transición)
+ *   - Misma reconstrucción de plan (nodos → acciones)
+ *
+ * Pseudocódigo DFS (transparencias pág. 14):
+ *   estado[inicial] = VISITADO
+ *   DFS_search(inicial, objetivo)
+ *
+ *   DFS_search(u, objetivo):
+ *     if u == objetivo: return TRUE
+ *     for each v in sucesores(u):
+ *       if estado[v] == NOVISITADO:
+ *         estado[v] = VISITADO
+ *         padre[v] = u
+ *         return DFS_search(v, objetivo)
+ *     return FALSE
+ *
+ * Implementación iterativa equivalente con Stack y búsqueda
+ * asíncrona (time-bounded) para no exceder el tiempo de GVGAI.
  */
 public class AgenteProfundidad extends AbstractPlayer {
 
+    private int blockSize;
+    private int metaX, metaY;
+
     private ArrayList<ACTIONS> planDeAccion;
-    
-    // Estructuras de búsqueda globales para mantener la memoria entre turnos
+
+    // Estructuras de búsqueda (persistentes entre ticks)
     private Stack<Nodo> frontera;
     private HashMap<String, Integer> visitados;
-    
-    // Banderas de control de estado
+
+    // Control
     private boolean buscando;
     private boolean metricasEnviadas;
-    
-    // Variables para las métricas oficiales de la UGR
     private int nodosExpandidos;
     private int profundidadMaxima;
 
-    /**
-     * Constructor del agente.
-     * REGLA UGR: SOLO inicialización de estructuras. Cero lógica de búsqueda aquí.
-     */
+    // =========================================================
+    //  CONSTRUCTOR — solo inicialización, búsqueda en act()
+    // =========================================================
     public AgenteProfundidad(StateObservation stateObs, ElapsedCpuTimer elapsedTimer) {
         super();
+        blockSize = stateObs.getBlockSize();
+
+        ArrayList<Observation>[] portales = stateObs.getPortalsPositions();
+        if (portales != null && portales.length > 0 && !portales[0].isEmpty()) {
+            metaX = gridX(portales[0].get(0).position);
+            metaY = gridY(portales[0].get(0).position);
+        }
+
         planDeAccion = new ArrayList<>();
         frontera = new Stack<>();
         visitados = new HashMap<>();
-        
         buscando = true;
         metricasEnviadas = false;
         nodosExpandidos = 0;
         profundidadMaxima = 0;
 
-        // Metemos el nodo inicial en la frontera
+        // Nodo raíz en la frontera
         Nodo raiz = new Nodo(stateObs);
         frontera.push(raiz);
-        
-        System.out.println("Agente DFS instanciado. Listo para búsqueda asíncrona...");
+
+        System.out.println("AgenteDFS inicializado. Meta: (" + metaX + "," + metaY + ")");
     }
 
-    /**
-     * Método principal que el motor de GVGAI llama en cada tick del juego.
-     */
+    // =========================================================
+    //  ACT
+    // =========================================================
     @Override
     public ACTIONS act(StateObservation stateObs, ElapsedCpuTimer elapsedTimer) {
-        
-        // 1. FASE DE BÚSQUEDA (El agente se queda quieto mientras piensa su plan maestro)
+        // Fase 1: búsqueda (el agente envía NIL mientras piensa)
         if (buscando) {
-            buscarRutaAsincrona(elapsedTimer);
+            buscarDFS(elapsedTimer);
         }
 
-        // 2. FASE DE EJECUCIÓN (El agente ha encontrado la ruta y se mueve rápido)
-        if (!buscando && planDeAccion != null && !planDeAccion.isEmpty()) {
-            return planDeAccion.remove(0); // Saca y ejecuta la primera acción de la lista
+        // Fase 2: ejecución del plan
+        if (!buscando && !planDeAccion.isEmpty()) {
+            return planDeAccion.remove(0);
         }
-        
-        // Mientras piensa o si agotó las acciones, no hace nada (espera)
-        return ACTIONS.ACTION_NIL; 
+
+        return ACTIONS.ACTION_NIL;
     }
 
-    /**
-     * Algoritmo DFS que vigila el tiempo restante de CPU para no ser descalificado.
-     */
-    private void buscarRutaAsincrona(ElapsedCpuTimer elapsedTimer) {
+    // =========================================================
+    //  DFS ASÍNCRONO (time-bounded)
+    // =========================================================
+    private void buscarDFS(ElapsedCpuTimer timer) {
         Nodo nodoDestino = null;
 
         while (!frontera.isEmpty()) {
-            
-            // CONTROL DE TIEMPO ESTRICTO: Si nos quedan menos de 5ms en este tick de GVGAI, 
-            // pausamos el cálculo (hacemos return) y continuaremos en el siguiente tick.
-            if (elapsedTimer.remainingTimeMillis() < 5) {
-                return; 
+            // Control de tiempo: pausar si quedan menos de 5ms
+            if (timer.remainingTimeMillis() < 5) {
+                return; // Continuará en el siguiente tick
             }
 
             Nodo actual = frontera.pop();
+
+            StateObservation estadoActual = actual.estado;
+
+            // A) ¿Game over?
+            if (estadoActual.isGameOver()) {
+                if (estadoActual.getGameWinner() == ontology.Types.WINNER.PLAYER_WINS) {
+                    nodoDestino = actual;
+                    break;
+                }
+                continue; // Murió → podar rama
+            }
+
+            // B) Control de visitados
+            String idEstado = stateKey(estadoActual);
+
+            if (visitados.containsKey(idEstado) && visitados.get(idEstado) <= actual.coste) {
+                continue; // Ya visitado con coste menor o igual → podar
+            }
+            visitados.put(idEstado, actual.coste);
+
+            // Métricas
             nodosExpandidos++;
-            
-            // Actualizamos la métrica de profundidad máxima
             if (actual.profundidad > profundidadMaxima) {
                 profundidadMaxima = actual.profundidad;
             }
 
-            StateObservation estadoActual = actual.estado;
+            // C) Expandir sucesores
+            int avatarTypeActual = estadoActual.getAvatarType();
+            int monedasActual = estadoActual.getAvatarResources().getOrDefault(15, 0);
+            Vector2d posActual = estadoActual.getAvatarPosition();
+            int gxAct = gridX(posActual), gyAct = gridY(posActual);
 
-            // A) ¿Hemos ganado o perdido en esta simulación?
-            if (estadoActual.isGameOver()) {
-                if (estadoActual.getGameWinner() == ontology.Types.WINNER.PLAYER_WINS) {
-                    nodoDestino = actual; // ¡Solución encontrada!
-                    break; 
-                } else {
-                    continue; // Morimos en esta simulación, podamos la rama
+            ACTIONS[] dirs = {ACTIONS.ACTION_UP, ACTIONS.ACTION_DOWN,
+                              ACTIONS.ACTION_LEFT, ACTIONS.ACTION_RIGHT};
+
+            for (ACTIONS dir : dirs) {
+                StateObservation copia = estadoActual.copy();
+                copia.advance(dir);
+
+                // Muerto → descartar
+                if (copia.isGameOver() &&
+                    copia.getGameWinner() != ontology.Types.WINNER.PLAYER_WINS) {
+                    continue;
                 }
-            }
 
-            // B) Control de Visitados a prueba de balas
-            String idEstado = generarIdEstado(estadoActual, actual.accion);
-            
-            // Si ya estuvimos aquí, pero en un número MENOR o IGUAL de pasos, podamos la rama
-            if (visitados.containsKey(idEstado) && visitados.get(idEstado) <= actual.coste) {
-                continue;
-            }
-            visitados.put(idEstado, actual.coste); // Guardamos el estado y su coste
+                ArrayList<ACTIONS> acciones = new ArrayList<>();
+                acciones.add(dir);
+                int costeExtra = 1;
 
-            // C) Expansión de Nodos
-            ArrayList<ACTIONS> accionesPosibles = estadoActual.getAvailableActions();
-            for (ACTIONS accion : accionesPosibles) {
-                StateObservation estadoHijo = estadoActual.copy();
-                estadoHijo.advance(accion); // Simulamos el futuro
+                // ¿Catapulta activada? (tipo de avatar cambió + monedas bajaron)
+                if (!copia.isGameOver()) {
+                    int monedasDespues = copia.getAvatarResources().getOrDefault(15, 0);
+                    int avatarTypeDespues = copia.getAvatarType();
 
-                Nodo hijo = new Nodo(estadoHijo, actual, accion, actual.coste + 1);
+                    boolean catapulta = (avatarTypeDespues != avatarTypeActual)
+                        && (monedasDespues < monedasActual);
+
+                    if (catapulta) {
+                        // Simular vuelo: NILs hasta que avatar vuelva a tipo original
+                        for (int t = 0; t < 30; t++) {
+                            copia.advance(ACTIONS.ACTION_NIL);
+                            acciones.add(ACTIONS.ACTION_NIL);
+                            costeExtra++;
+
+                            if (copia.isGameOver()) break;
+                            if (copia.getAvatarType() == avatarTypeActual) break;
+                        }
+                    }
+                }
+
+                // Crear nodo hijo con la lista de acciones agrupada
+                Nodo hijo = new Nodo(copia, actual, acciones, actual.coste + costeExtra);
                 frontera.push(hijo);
             }
         }
-        
-        // Si sale del while es porque encontró la meta o vació toda la pila (se rindió)
-        buscando = false; 
+
+        // Búsqueda terminada
+        buscando = false;
 
         if (nodoDestino != null) {
             construirPlan(nodoDestino);
-            System.out.println("¡Ruta encontrada! Pasos a dar: " + planDeAccion.size());
+            System.out.println("DFS: Ruta encontrada. Acciones: " + planDeAccion.size());
         } else {
-            System.out.println("Búsqueda agotada: No se encontró ninguna ruta al portal.");
+            System.out.println("DFS: No se encontró solución.");
         }
 
-        // Enviamos las métricas a los profesores una única vez
+        // Métricas
         if (!metricasEnviadas) {
-            MetricsProvider metrics = MetricsProvider.getInstance();
-            metrics.setNodosExpandidos(nodosExpandidos);
-            metrics.setProfundidadMaxima(profundidadMaxima);
-            metrics.setNodosAbiertos(frontera.size());
-            metrics.setNodosCerrados(visitados.size());
-            metrics.setNumAccionesPlan(nodoDestino != null ? planDeAccion.size() : -1);
-            metrics.printMetrics();
+            MetricsProvider mp = MetricsProvider.getInstance();
+            mp.setNodosExpandidos(nodosExpandidos);
+            mp.setProfundidadMaxima(profundidadMaxima);
+            mp.setNodosAbiertos(frontera.size());
+            mp.setNodosCerrados(visitados.size());
+            mp.setNumAccionesPlan(nodoDestino != null ? planDeAccion.size() : -1);
+            mp.printMetrics();
             metricasEnviadas = true;
         }
     }
 
-    /**
-     * Generador de IDs a prueba de balas para el motor GVGAI.
-     * Incluye memoria de 1 tick para físicas retardadas y visión absoluta de proyectiles.
-     */
-    private String generarIdEstado(StateObservation estado, ACTIONS ultimaAccion) {
-        tools.Vector2d pos = estado.getAvatarPosition();
-        
-        // PARACAÍDAS ANTI-PODAS: Si el avatar está volando en la catapulta, desaparece temporalmente (pos == null).
-        if (pos == null) {
-            return "oculto_vuelo_" + estado.getGameTick();
+    // =========================================================
+    //  RECONSTRUIR PLAN (nodos → acciones)
+    // =========================================================
+    private void construirPlan(Nodo nodoFinal) {
+        Deque<Nodo> pila = new ArrayDeque<>();
+        for (Nodo n = nodoFinal; n.padre != null; n = n.padre) {
+            pila.push(n);
         }
-        
-        StringBuilder id = new StringBuilder();
-        
-        // 0. Gracia de 1 tick: Evita podar acciones que tardan 1 turno en mostrar su efecto visual
-        id.append(ultimaAccion).append("_");
-        
-        // 1. Posición y orientación continua exacta (evita Aliasing de estado en el aire)
-        id.append(pos.x).append("_").append(pos.y).append("_");
-        
-        tools.Vector2d ori = estado.getAvatarOrientation();
-        if (ori != null) id.append(ori.x).append("_").append(ori.y).append("_");
-        
-        id.append(estado.getAvatarType()).append("_");
-        
-        // 2. Mapeo estricto de TODOS los objetos (Imprescindible para notar interacciones con bloques/catapultas)
-        appendObs(id, estado.getImmovablePositions());
-        appendObs(id, estado.getMovablePositions());
-        appendObs(id, estado.getResourcesPositions());
-        appendObs(id, estado.getNPCPositions());
-        appendObs(id, estado.getPortalsPositions());
-        
-        // ¡LA CLAVE DE CATAPULTS! Leer la lista oculta donde GVGAI guarda los disparos e interacciones
-        appendObs(id, estado.getFromAvatarSpritesPositions()); 
-        
-        // 3. Inventario interno (Recursos)
-        if (estado.getAvatarResources() != null) {
-            for (Integer key : estado.getAvatarResources().keySet()) {
-                id.append(key).append("=").append(estado.getAvatarResources().get(key)).append("_");
+        while (!pila.isEmpty()) {
+            Nodo n = pila.pop();
+            if (n.accionesDesdeParent != null) {
+                planDeAccion.addAll(n.accionesDesdeParent);
             }
         }
-        
-        return id.toString();
     }
 
-    /**
-     * Método auxiliar para registrar el tipo y la posición exacta de cada objeto del juego.
-     */
-    private void appendObs(StringBuilder sb, java.util.ArrayList<core.game.Observation>[] obsArrays) {
-        if (obsArrays != null) {
-            for (java.util.ArrayList<core.game.Observation> list : obsArrays) {
-                for (core.game.Observation obs : list) {
-                    sb.append(obs.itype).append("-").append(obs.position.x).append("-").append(obs.position.y).append("_");
+    // =========================================================
+    //  CLAVE DE ESTADO — idéntica al A*
+    // =========================================================
+    private String stateKey(StateObservation so) {
+        Vector2d pos = so.getAvatarPosition();
+        int gx = gridX(pos), gy = gridY(pos);
+        int monedas = so.getAvatarResources().getOrDefault(15, 0);
+
+        long resBits = 0;
+        ArrayList<Observation>[] rec = so.getResourcesPositions();
+        if (rec != null) {
+            for (ArrayList<Observation> lista : rec) {
+                for (Observation obs : lista) {
+                    int rx = gridX(obs.position);
+                    int ry = gridY(obs.position);
+                    resBits |= (1L << ((ry * 16 + rx) & 63));
                 }
             }
         }
+        return gx + "," + gy + "," + monedas + "," + resBits;
     }
 
-    /**
-     * Reconstruye el camino desde el nodo final hasta la raíz siguiendo a los padres.
-     */
-    private void construirPlan(Nodo nodoFinal) {
-        Nodo actual = nodoFinal;
-        Stack<ACTIONS> pilaAcciones = new Stack<>();
-        
-        // Retrocedemos desde la meta hasta el inicio apilando los pasos
-        while (actual.padre != null) {
-            pilaAcciones.push(actual.accion);
-            actual = actual.padre;
-        }
-        
-        // Vaciamos la pila en nuestra lista para que queden en el orden cronológico correcto
-        while (!pilaAcciones.isEmpty()) {
-            planDeAccion.add(pilaAcciones.pop());
-        }
-    }
+    // =========================================================
+    //  UTILIDADES
+    // =========================================================
+    private int gridX(Vector2d pos) { return (int)(pos.x / blockSize); }
+    private int gridY(Vector2d pos) { return (int)(pos.y / blockSize); }
 }
