@@ -364,30 +364,38 @@ public class AgenteAStar extends AbstractPlayer {
             }
             return new Estado(nx,ny,m,l,mB,cB,0,0,0);
         } else if (e.fase==1) {
+            // Transformación vampiro→murciélago: quieto, 1 NIL
             if(a!=ACTIONS.ACTION_NIL) return null;
             return new Estado(e.x,e.y,e.mon,e.llave,e.mB,e.cB,2,e.vdx,e.vdy);
         } else if (e.fase==2) {
+            // Volando: avanza 1 celda por NIL
             if(a!=ACTIONS.ACTION_NIL) return null;
             int tx=e.x+e.vdx, ty=e.y+e.vdy;
             boolean col=(tx<0||tx>=gridW||ty<0||ty>=gridH);
             if(!col) col=(muro[tx][ty]&&!agua[tx][ty])||(tx==metaX&&ty==metaY&&!e.llave);
             if(col) {
-                // Aterriza en celda actual. Si es agua, muere.
-                if (agua[e.x][e.y]) return null;
-                // Colisión: avatar se queda quieto, fase 3 = retransformación
-                return new Estado(e.x,e.y,e.mon,e.llave,e.mB,e.cB,3,0,0);
+                // Colisión + retransformación en el mismo tick → fase 0
+                if (agua[e.x][e.y]) return null; // aterrizar en agua = muerte
+                return new Estado(e.x,e.y,e.mon,e.llave,e.mB,e.cB,0,0,0);
             }
             int nx=tx,ny=ty,m=e.mon;boolean l=e.llave;int mB=e.mB,cB=e.cB,vx=e.vdx,vy=e.vdy;
             int mi=monIdx(nx,ny);if(mi>=0&&(mB&(1<<mi))!=0&&m<5){m++;mB&=~(1<<mi);}
             if(nx==llaveX&&ny==llaveY&&!l) l=true;
-            // Catapulta en vuelo: cambia dirección, consume catapulta, NO cobra moneda
+            // Catapulta en vuelo: se mueve a la celda de la catapulta (este NIL),
+            // y en el siguiente NIL (fase 3) se sobrepasa y cambia dirección
             long pk=enc(nx,ny);Integer ci=catIdx.get(pk);
-            if(ci!=null&&(cB&(1<<ci))!=0){int[] dir=catDir.get(pk);vx=dir[0];vy=dir[1];cB&=~(1<<ci);}
+            if(ci!=null&&(cB&(1<<ci))!=0){
+                int[] dir=catDir.get(pk);
+                cB&=~(1<<ci);
+                // Fase 3: en la catapulta, siguiente NIL la sobrepasará
+                return new Estado(nx,ny,m,l,mB,cB,3,dir[0],dir[1]);
+            }
             return new Estado(nx,ny,m,l,mB,cB,2,vx,vy);
         } else if (e.fase==3) {
-            // Retransformación murciélago→vampiro: 1 NIL
+            // Sobrepaso de catapulta en vuelo: 1 NIL extra, luego sigue volando
             if(a!=ACTIONS.ACTION_NIL) return null;
-            return new Estado(e.x,e.y,e.mon,e.llave,e.mB,e.cB,0,0,0);
+            // Ahora sigue volando con la nueva dirección
+            return new Estado(e.x,e.y,e.mon,e.llave,e.mB,e.cB,2,e.vdx,e.vdy);
         }
         return null;
     }
