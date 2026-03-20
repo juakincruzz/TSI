@@ -314,8 +314,25 @@ public class AgenteAStar extends AbstractPlayer {
         ArrayList<ACTIONS> r = new ArrayList<>();
         if (meta != null) {
             Deque<ACTIONS> p = new ArrayDeque<>();
-            for (Nodo n = meta; n.padre != null; n = n.padre) p.push(n.accion);
+            // Also collect states for debug
+            Deque<Estado> estados = new ArrayDeque<>();
+            for (Nodo n = meta; n.padre != null; n = n.padre) {
+                p.push(n.accion);
+                estados.push(n.e);
+            }
             while (!p.isEmpty()) r.add(p.pop());
+            
+            // Print plan with states
+            System.out.println("=== PLAN (" + r.size() + " acciones) ===");
+            int step = 0;
+            Iterator<Estado> ei = estados.iterator();
+            for (ACTIONS a : r) {
+                Estado es = ei.hasNext() ? ei.next() : null;
+                String info = es != null ? 
+                    "→(" + es.x + "," + es.y + ") fase=" + es.fase + " mon=" + es.mon + " llave=" + es.llave + " vd=(" + es.vdx + "," + es.vdy + ")" : "";
+                System.out.println("  " + step + ": " + a + " " + info);
+                step++;
+            }
         }
         MetricsProvider mp = MetricsProvider.getInstance();
         mp.setNodosExpandidos(nodosExp); mp.setProfundidadMaxima(profMax);
@@ -354,7 +371,12 @@ public class AgenteAStar extends AbstractPlayer {
             int tx=e.x+e.vdx, ty=e.y+e.vdy;
             boolean col=(tx<0||tx>=gridW||ty<0||ty>=gridH);
             if(!col) col=(muro[tx][ty]&&!agua[tx][ty])||(tx==metaX&&ty==metaY&&!e.llave);
-            if(col) return new Estado(e.x,e.y,e.mon,e.llave,e.mB,e.cB,3,0,0);
+            if(col) {
+                // Aterriza en celda actual. Si es agua, muere.
+                if (agua[e.x][e.y]) return null;
+                // Colisión: avatar se queda quieto, fase 3 = retransformación
+                return new Estado(e.x,e.y,e.mon,e.llave,e.mB,e.cB,3,0,0);
+            }
             int nx=tx,ny=ty,m=e.mon;boolean l=e.llave;int mB=e.mB,cB=e.cB,vx=e.vdx,vy=e.vdy;
             int mi=monIdx(nx,ny);if(mi>=0&&(mB&(1<<mi))!=0&&m<5){m++;mB&=~(1<<mi);}
             if(nx==llaveX&&ny==llaveY&&!l) l=true;
@@ -363,6 +385,7 @@ public class AgenteAStar extends AbstractPlayer {
             if(ci!=null&&(cB&(1<<ci))!=0){int[] dir=catDir.get(pk);vx=dir[0];vy=dir[1];cB&=~(1<<ci);}
             return new Estado(nx,ny,m,l,mB,cB,2,vx,vy);
         } else if (e.fase==3) {
+            // Retransformación murciélago→vampiro: 1 NIL
             if(a!=ACTIONS.ACTION_NIL) return null;
             return new Estado(e.x,e.y,e.mon,e.llave,e.mB,e.cB,0,0,0);
         }
