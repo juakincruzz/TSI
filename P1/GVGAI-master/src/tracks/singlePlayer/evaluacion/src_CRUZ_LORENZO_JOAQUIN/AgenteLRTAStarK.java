@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Queue;
+import java.util.List;
 
 import core.game.Observation;
 import core.game.StateObservation;
@@ -15,14 +16,13 @@ import tools.Vector2d;
 import tracks.singlePlayer.MetricsProvider;
 
 /**
- * Agente RTA* (Real-Time A*) — Práctica 1 TSI (UGR 2025-26)
- * * Implementa la Opción C: Sincronización híbrida.
- * - Ojos (StateObservation): Lee la realidad en cada tick para corregir desvíos.
- * - Imaginación (Modelo Interno): Usa el método trans() matemático para generar
- * vecinos en microsegundos y evitar OutOfMemoryErrors.
- * * Regla RTA*: h(x) = max(h(x), 2º mínimo de {c(x,y) + h(y)})
+ * Agente LRTA*(k) (Learning Real-Time A*) — Práctica 1 TSI
+ * Implementa propagación de heurística con parámetro K.
  */
-public class AgenteRTAStar extends AbstractPlayer {
+public class AgenteLRTAStarK extends AbstractPlayer {
+
+    // Parámetro K de propagación
+    private static final int K = 5; 
 
     private int blockSize, gridW, gridH;
     private int metaX, metaY, iniX, iniY;
@@ -36,24 +36,22 @@ public class AgenteRTAStar extends AbstractPlayer {
     private int numMon;
     private int llaveX = -1, llaveY = -1;
 
-    // Tabla de heurísticas aprendidas
+    // --- Estructuras LRTA*(k) ---
     private HashMap<String, Double> tablaH;
+    private HashMap<String, String> soporte; // Guarda el key del mejor vecino
+    private HashMap<String, Estado> estadosVisitados; // Para recuperar vecinos hacia atrás
 
     // Métricas oficiales
-    private int nodosExp = 0, numAcciones = 0;
+    private int nodosExp = 0, numAcciones = 0, numActualizacionesTabla = 0;
     private long tiempoInicio;
     private boolean haTerminado = false;
 
-    // Orden de expansión estricto para desempates (R, U, L, D)
     private static final ACTIONS[] ORDEN = {
         ACTIONS.ACTION_RIGHT, ACTIONS.ACTION_UP,
         ACTIONS.ACTION_LEFT,  ACTIONS.ACTION_DOWN
     };
 
-    // =========================================================
-    //  CONSTRUCTOR
-    // =========================================================
-    public AgenteRTAStar(StateObservation so, ElapsedCpuTimer timer) {
+    public AgenteLRTAStarK(StateObservation so, ElapsedCpuTimer timer) {
         super();
         blockSize = so.getBlockSize();
         gridW = so.getObservationGrid().length;
@@ -62,22 +60,22 @@ public class AgenteRTAStar extends AbstractPlayer {
         agua = new boolean[gridW][gridH];
         catDir = new HashMap<>();
         catIdx = new HashMap<>();
+        
         tablaH = new HashMap<>();
+        soporte = new HashMap<>();
+        estadosVisitados = new HashMap<>();
 
         Vector2d ap = so.getAvatarPosition();
         iniX = gx(ap); iniY = gy(ap);
 
-        // Portal
         ArrayList<Observation>[] portales = so.getPortalsPositions();
         if (portales != null && portales.length > 0 && !portales[0].isEmpty()) {
             metaX = gx(portales[0].get(0).position);
             metaY = gy(portales[0].get(0).position);
         }
 
-        // Detectar direcciones de catapultas mediante VGDL
         itypeToDir = detectarItypeDirecciones(so);
 
-        // Clasificar inmovables
         ArrayList<long[]> catList = new ArrayList<>();
         ArrayList<Observation>[] inmov = so.getImmovablePositions();
         if (inmov != null) {
@@ -101,7 +99,6 @@ public class AgenteRTAStar extends AbstractPlayer {
         for (long[] cl : catList) catIdx.put(cl[0], ci++);
         numCats = ci;
 
-        // Monedas y llave
         ArrayList<Long> ml = new ArrayList<>();
         ArrayList<Observation>[] rec = so.getResourcesPositions();
         if (rec != null) {
@@ -117,115 +114,136 @@ public class AgenteRTAStar extends AbstractPlayer {
         for (int i = 0; i < numMon; i++) monPos[i] = ml.get(i);
 
         tiempoInicio = System.currentTimeMillis();
-        System.out.println("RTA* init: Listo para búsqueda online (Korf 1990).");
+        System.out.println("LRTA*(k=" + K + ") init: Listo para aprender.");
     }
 
-    // =========================================================
-    //  ACT (Algoritmo RTA* Online)
-    // =========================================================
     @Override
     public ACTIONS act(StateObservation so, ElapsedCpuTimer timer) {
         if (haTerminado) return ACTIONS.ACTION_NIL;
 
-        // 🔧 FIX: Avatar desaparecido en catapulta = devolver NIL para esperar
         if (so.getAvatarType() != 9 || so.getAvatarPosition() == null) {
-            System.out.println("[DEBUG] Avatar en transición (catapulta). Esperando...");
-            return ACTIONS.ACTION_NIL;  // NO incrementar contadores
+            nodosExp++; numAcciones++;
+            return ACTIONS.ACTION_NIL;
         }
 
-        // Estado actual
         Estado ac = sincronizarEstado(so);
-        System.out.println("[DEBUG] Estado actual: x=" + ac.x + ", y=" + ac.y + 
-                        ", mon=" + ac.mon + ", llave=" + ac.llave);
-        System.out.println("[DEBUG] Meta: x=" + metaX + ", y=" + metaY);
+        estadosVisitados.put(ac.key(), ac);
 
         if (esMeta(ac)) {
-            System.out.println("[DEBUG] ¡META ALCANZADA!");
             finalizarBusqueda();
             return ACTIONS.ACTION_NIL;
         }
 
-        // Vecinos y valores f
-        ArrayList<Double> fValores = new ArrayList<>();
-        ArrayList<ACTIONS> accionesValidas = new ArrayList<>();
+        nodosExp++; 
+        numAcciones++;
+
+        // 1. PROPAGACIÓN Y ACTUALIZACIÓN (LookaheadUpdateK)
+        lookaheadUpdateK(ac, K);
+
+        // 2. SELECCIÓN DEL MEJOR VECINO (Regla de Movimiento)
+        double mejorF = Double.MAX_VALUE;
+        ACTIONS mejorAccion = ACTIONS.ACTION_NIL;
 
         for (ACTIONS a : ORDEN) {
             Estado vecino = trans(ac, a);
             if (vecino != null) {
-                double f_y = 1.0 + obtenerH(vecino);
-                fValores.add(f_y);
-                accionesValidas.add(a);
-                System.out.println("[DEBUG]   Acción " + a + " -> f=" + f_y + 
-                                ", h=" + obtenerH(vecino));
+                double f = 1.0 + obtenerH(vecino);
+                if (f < mejorF) {
+                    mejorF = f;
+                    mejorAccion = a;
+                }
             }
         }
 
-        if (fValores.isEmpty()) {
-            System.out.println("[DEBUG] ¡BLOQUEADO! Sin acciones válidas");
-            return ACTIONS.ACTION_NIL;
-        }
-
-        // Mínimos
-        double primerMin = Double.MAX_VALUE;
-        int indexMejor = -1;
-        for (int i = 0; i < fValores.size(); i++) {
-            if (fValores.get(i) < primerMin) {
-                primerMin = fValores.get(i);
-                indexMejor = i;
-            }
-        }
-
-        double segundoMin = (fValores.size() == 1) ? primerMin : Double.MAX_VALUE;
-        if (fValores.size() > 1) {
-            for (int i = 0; i < fValores.size(); i++) {
-                if (i == indexMejor) continue;
-                if (fValores.get(i) < segundoMin) segundoMin = fValores.get(i);
-            }
-        }
-
-        System.out.println("[DEBUG] Primer min=" + primerMin + ", Segundo min=" + segundoMin);
-        System.out.println("[DEBUG] Acción elegida: " + accionesValidas.get(indexMejor));
-
-        double hActual = obtenerH(ac);
-        if (segundoMin > hActual) {
-            tablaH.put(ac.key(), segundoMin);
-            System.out.println("[DEBUG] Actualizada h(" + ac.key() + ") = " + segundoMin);
-        }
-
-        nodosExp++;
-        numAcciones++;
-        return accionesValidas.get(indexMejor);
+        return mejorAccion;
     }
 
     // =========================================================
-    //  Sincronización Híbrida (Opción C)
+    //  PROPAGACIÓN LRTA*(k)
+    // =========================================================
+    private void lookaheadUpdateK(Estado inicio, int limiteK) {
+        Queue<Estado> cola = new LinkedList<>();
+        cola.add(inicio);
+        int contador = limiteK - 1;
+
+        while (!cola.isEmpty()) {
+            Estado x = cola.poll();
+            
+            // 1. Calcular el mejor vecino de X
+            double minF = Double.MAX_VALUE;
+            Estado mejorVecinoX = null;
+            
+            for (ACTIONS a : ORDEN) {
+                Estado vecino = trans(x, a);
+                if (vecino != null) {
+                    estadosVisitados.put(vecino.key(), vecino); // Registrar para propagación
+                    double f = 1.0 + obtenerH(vecino);
+                    if (f < minF) {
+                        minF = f;
+                        mejorVecinoX = vecino;
+                    }
+                }
+            }
+
+            if (mejorVecinoX == null) continue; // Estado sin salida
+
+            // 2. Actualizar el Soporte
+            soporte.put(x.key(), mejorVecinoX.key());
+
+            // 3. Regla de Aprendizaje LRTA* (1º mínimo)
+            boolean propagar = false;
+            double hActual = obtenerH(x);
+            
+            if (hActual < minF) {
+                propagar = true;
+                tablaH.put(x.key(), minF);
+                numActualizacionesTabla++;
+            }
+
+            // 4. Propagación hacia los nodos que dependen de X
+            if (propagar && contador > 0) {
+                // Buscamos en nuestra memoria qué nodos tenían a X como su "mejor vecino"
+                List<Estado> dependientes = obtenerNodosConSoporte(x.key());
+                for (Estado sucesor : dependientes) {
+                    cola.add(sucesor);
+                }
+                contador--;
+            }
+        }
+    }
+
+    /**
+     * Devuelve una lista de los estados visitados cuyo soporte actual es 'keySoporte'
+     */
+    private List<Estado> obtenerNodosConSoporte(String keySoporte) {
+        List<Estado> dependientes = new ArrayList<>();
+        for (String key : soporte.keySet()) {
+            if (soporte.get(key).equals(keySoporte)) {
+                dependientes.add(estadosVisitados.get(key));
+            }
+        }
+        return dependientes;
+    }
+
+    // =========================================================
+    //  RESTO DE FUNCIONES (Idénticas a RTA*)
     // =========================================================
     private Estado sincronizarEstado(StateObservation so) {
         Vector2d ap = so.getAvatarPosition();
         int ax = gx(ap), ay = gy(ap);
-
-        int mB = 0;
-        boolean llave = false;  // Por defecto NO la tiene
+        int mB = 0; boolean llave = true; 
         
         ArrayList<Observation>[] rec = so.getResourcesPositions();
         if (rec != null) {
             for (ArrayList<Observation> lista : rec) {
                 for (Observation obs : lista) {
-                    if (obs.itype == 15) { // Moneda en el mapa
+                    if (obs.itype == 15) { 
                         int mi = monIdx(gx(obs.position), gy(obs.position));
                         if (mi >= 0) mB |= (1 << mi);
-                    } else if (obs.itype == 16) { // Llave aún en el mapa
-                        llave = false; 
-                    }
+                    } else if (obs.itype == 16) { llave = false; }
                 }
             }
         }
-        
-        // 🔧 Si la llave NO está en el mapa, el avatar la tiene
-        if (rec == null || !tieneRecurso(rec, 16)) {
-            llave = true;
-        }
-        
         int mon = numMon - Integer.bitCount(mB);
 
         int cB = 0;
@@ -241,30 +259,18 @@ public class AgenteRTAStar extends AbstractPlayer {
                 }
             }
         }
-
         return new Estado(ax, ay, mon, llave, mB, cB, 0, 0, 0);
-    }
-
-    private boolean tieneRecurso(ArrayList<Observation>[] rec, int itype) {
-        for (ArrayList<Observation> lista : rec) {
-            for (Observation obs : lista) {
-                if (obs.itype == itype) return true;
-            }
-        }
-        return false;
     }
 
     private double obtenerH(Estado e) {
         String k = e.key();
         if (tablaH.containsKey(k)) return tablaH.get(k);
-        double h0 = hM(e.x, e.y); // Heurística inicial: Manhattan al portal
+        double h0 = hM(e.x, e.y); 
         tablaH.put(k, h0);
         return h0;
     }
 
-    private boolean esMeta(Estado e) { 
-        return e.x == metaX && e.y == metaY && e.llave; 
-    }
+    private boolean esMeta(Estado e) { return e.x == metaX && e.y == metaY && e.llave; }
 
     private void finalizarBusqueda() {
         haTerminado = true;
@@ -272,14 +278,12 @@ public class AgenteRTAStar extends AbstractPlayer {
         MetricsProvider mp = MetricsProvider.getInstance();
         mp.setNodosExpandidos(nodosExp);
         mp.setNumAccionesPlan(numAcciones);
+        mp.setNumActualizacionesTabla(numActualizacionesTabla); // Nueva métrica para LRTA*
         mp.setTiempoMilisegundos(tiempoTotal);
-        mp.setAgente("RTA*");
+        mp.setAgente("LRTA*(k)");
         mp.printMetrics();
     }
 
-    // =========================================================
-    //  MÉTODO DE TRANSICIÓN MATEMÁTICO (Imaginación con Macro-Acciones)
-    // =========================================================
     private Estado trans(Estado e, ACTIONS a) {
         if (e.fase == 0) {
             if (a == ACTIONS.ACTION_NIL) return null;
@@ -290,82 +294,45 @@ public class AgenteRTAStar extends AbstractPlayer {
             if (muro[nx][ny]) return null;
             if (nx == metaX && ny == metaY && !e.llave) return null; 
             
-            int m = e.mon; 
-            boolean l = e.llave; 
-            int mB = e.mB, cB = e.cB;
+            int m = e.mon; boolean l = e.llave; int mB = e.mB, cB = e.cB;
             
-            // Simular recolección de monedas
             int mi = monIdx(nx, ny); 
-            if (mi >= 0 && (mB & (1 << mi)) != 0 && m < 5) {
-                m++; 
-                mB &= ~(1 << mi);
-            }
-            
-            // Simular recolección de llave
+            if (mi >= 0 && (mB & (1 << mi)) != 0 && m < 5) { m++; mB &= ~(1 << mi); }
             if (nx == llaveX && ny == llaveY && !l) l = true;
             
-            // === SIMULACIÓN DE CATAPULTA (PROYECCIÓN DE VUELO INSTANTÁNEA) ===
             long pk = enc(nx, ny); 
             Integer ci = catIdx.get(pk);
             if (ci != null && (cB & (1 << ci)) != 0) {
-                if (m <= 0) return null; // No hay monedas para pagar
-                m--; 
-                int[] dir = catDir.get(pk); 
-                cB &= ~(1 << ci);
+                if (m <= 0) return null; 
+                m--; int[] dir = catDir.get(pk); cB &= ~(1 << ci);
+                int vx = dir[0], vy = dir[1], cx = nx, cy = ny;
                 
-                int vx = dir[0], vy = dir[1];
-                int cx = nx, cy = ny;
-                
-                // Bucle de clarividencia: calculamos dónde va a aterrizar
                 while (true) {
-                    int tx = cx + vx;
-                    int ty = cy + vy;
-                    
-                    // ¿Hay colisión en la siguiente baldosa?
+                    int tx = cx + vx, ty = cy + vy;
                     boolean col = (tx < 0 || tx >= gridW || ty < 0 || ty >= gridH);
                     if (!col) col = (muro[tx][ty] && !agua[tx][ty]) || (tx == metaX && ty == metaY && !l);
                     
                     if (col) {
-                        // Aterriza en la casilla actual (cx, cy)
-                        if (agua[cx][cy]) return null; // ¡Muerte! RTA* verá esta acción como BLOQUEADA
-                        
-                        // Aterrizaje seguro. Devolvemos el estado en el destino final.
+                        if (agua[cx][cy]) return null; 
                         return new Estado(cx, cy, m, l, mB, cB, 0, 0, 0); 
                     }
-                    
-                    // Avanzamos 1 casilla en el aire
-                    cx = tx; 
-                    cy = ty;
-                    
-                    // Recogemos monedas y llaves en pleno vuelo
+                    cx = tx; cy = ty;
                     int miVuelo = monIdx(cx, cy); 
-                    if (miVuelo >= 0 && (mB & (1 << miVuelo)) != 0 && m < 5) {
-                        m++; 
-                        mB &= ~(1 << miVuelo);
-                    }
+                    if (miVuelo >= 0 && (mB & (1 << miVuelo)) != 0 && m < 5) { m++; mB &= ~(1 << miVuelo); }
                     if (cx == llaveX && cy == llaveY && !l) l = true;
                     
-                    // Si pasamos por encima de otra catapulta, cambiamos de dirección
-                    long pkVuelo = enc(cx, cy);
-                    Integer ciVuelo = catIdx.get(pkVuelo);
+                    long pkVuelo = enc(cx, cy); Integer ciVuelo = catIdx.get(pkVuelo);
                     if (ciVuelo != null && (cB & (1 << ciVuelo)) != 0) {
-                        int[] dirVuelo = catDir.get(pkVuelo);
-                        cB &= ~(1 << ciVuelo);
-                        vx = dirVuelo[0];
-                        vy = dirVuelo[1];
+                        int[] dirVuelo = catDir.get(pkVuelo); cB &= ~(1 << ciVuelo);
+                        vx = dirVuelo[0]; vy = dirVuelo[1];
                     }
                 }
             }
-            
-            // Movimiento normal sin catapulta
             return new Estado(nx, ny, m, l, mB, cB, 0, 0, 0);
         }
         return null;
     }
 
-    // =========================================================
-    //  UTILIDADES Y Detección de Catapultas
-    // =========================================================
     private double hM(int x, int y) { return Math.abs(x - metaX) + Math.abs(y - metaY); }
     private int gx(Vector2d p) { return (int)(p.x / blockSize); }
     private int gy(Vector2d p) { return (int)(p.y / blockSize); }
@@ -455,19 +422,13 @@ public class AgenteRTAStar extends AbstractPlayer {
         return null;
     }
 
-    // =========================================================
-    //  CLASE ESTADO INTERNO
-    // =========================================================
     private static class Estado {
-        int x, y, mon, mB, cB, fase, vdx, vdy; 
-        boolean llave;
+        int x, y, mon, mB, cB, fase, vdx, vdy; boolean llave;
         Estado(int x, int y, int m, boolean l, int mB, int cB, int f, int vx, int vy) {
             this.x = x; this.y = y; mon = m; llave = l;
             this.mB = mB; this.cB = cB; fase = f; vdx = vx; vdy = vy;
         }
-        String key() {
-            return x+","+y+","+mon+","+(llave?1:0)+","+mB+","+cB;
-        }
+        String key() { return x+","+y+","+mon+","+(llave?1:0)+","+mB+","+cB; }
     }
 
     // =========================================================

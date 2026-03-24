@@ -26,7 +26,7 @@ public class Test {
 		String sampleOLETSController = "tracks.singlePlayer.advanced.olets.Agent";
 
 		// Mi agente de Depth First Search
-		String miAgenteDFS = "tracks.singlePlayer.evaluacion.src_CRUZ_LORENZO_JOAQUIN.AgenteProfundidad";
+		String miAgenteDFS = "tracks.singlePlayer.evaluacion.src_CRUZ_LORENZO_JOAQUIN.AgenteProfundidad"; // <- El nombre de mi agente, con el paquete incluido
 
 		String agentName = miAgenteDFS; // <- Le decimos al motor que use el mio
 

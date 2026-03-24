@@ -428,4 +428,6 @@ public class AgenteAStar extends AbstractPlayer {
             double f1=f(),f2=o.f();if(f1!=f2)return Double.compare(f1,f2);
             if(h!=o.h)return Double.compare(h,o.h);return Integer.compare(orden,o.orden);}
     }
+
+    
 }
