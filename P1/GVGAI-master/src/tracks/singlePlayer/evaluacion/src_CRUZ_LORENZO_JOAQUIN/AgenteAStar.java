@@ -281,7 +281,11 @@ public class AgenteAStar extends AbstractPlayer {
         HashMap<String, Nodo> ce = new HashMap<>();
         int ord = 0;
 
-        Estado e0 = new Estado(iniX, iniY, 0, false,
+        // Si llaveX es -1, significa que no hay llave en el nivel. 
+        // Asumimos que "ya la tiene" (true) para que el portal le deje ganar.
+        boolean tieneLlaveInicial = (llaveX == -1);
+        
+        Estado e0 = new Estado(iniX, iniY, 0, tieneLlaveInicial,
             (1<<numMon)-1, (1<<numCats)-1, 0, 0, 0);
         Nodo n0 = new Nodo(e0, null, ACTIONS.ACTION_NIL, 0, hM(iniX, iniY), 0, ord++);
         ab.add(n0); abM.put(e0.key(), n0);
