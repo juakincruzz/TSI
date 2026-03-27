@@ -26,7 +26,7 @@ public class AgenteProfundidad extends AbstractPlayer {
     private ArrayList<ACTIONS> plan = null;
     private int nodosExp = 0, profMax = 0;
 
-    // Ajuste de Desempate: Prioridad Derecha y Abajo (hacia la meta)
+    // Orden clásico del profesor
     private static final ACTIONS[] ORDEN = {
         ACTIONS.ACTION_RIGHT, ACTIONS.ACTION_UP,
         ACTIONS.ACTION_LEFT,  ACTIONS.ACTION_DOWN,
@@ -66,7 +66,6 @@ public class AgenteProfundidad extends AbstractPlayer {
         catDir = new HashMap<>();
         catIdx = new HashMap<>();
 
-        // Radar Inteligente
         HashMap<Integer, int[]> itypeToDir = detectarItypeDireccionesIncremental(so);
 
         muro = new boolean[gridW][gridH];
@@ -94,8 +93,6 @@ public class AgenteProfundidad extends AbstractPlayer {
         int ci = 0;
         for (long[] cl : catList) catIdx.put(cl[0], ci++);
         numCats = ci;
-
-        System.out.println("DFS init: " + gridW + "x" + gridH + " meta=(" + metaX + "," + metaY + ") cats=" + numCats);
     }
 
     private HashMap<Integer, int[]> detectarItypeDireccionesIncremental(StateObservation so) {
@@ -111,7 +108,7 @@ public class AgenteProfundidad extends AbstractPlayer {
                     int it = obs.itype;
                     int x = gx(obs.position), y = gy(obs.position);
                     if (x>=0 && x<gridW && y>=0 && y<gridH) mapItype[x][y] = it;
-                    if (it != 0 && it != 2 && it != 3 && it != 18) {
+                    if (it != 0 && it != 2 && it != 3 && it != 18 && it != 5) {
                         targetItypes.add(it); 
                     }
                 }
@@ -121,7 +118,6 @@ public class AgenteProfundidad extends AbstractPlayer {
         boolean learnedNew = true;
         while (learnedNew && knownDirs.size() < targetItypes.size()) {
             learnedNew = false;
-            
             muro = new boolean[gridW][gridH];
             agua = new boolean[gridW][gridH];
             catDir.clear(); catIdx.clear();
@@ -252,7 +248,9 @@ public class AgenteProfundidad extends AbstractPlayer {
 
     private ArrayList<ACTIONS> buscarDFS() {
         Stack<Nodo> frontera = new Stack<>();
-        HashMap<String, Integer> visitados = new HashMap<>();
+        
+        // DFS PURO: Un simple HashSet en lugar de medir los costes
+        HashSet<String> visitados = new HashSet<>();
 
         boolean tieneLlaveInicial = (llaveX == -1);
         Estado e0 = new Estado(iniX, iniY, 0, tieneLlaveInicial, (1<<numMon)-1, (1<<numCats)-1, 0, 0, 0);
@@ -263,16 +261,16 @@ public class AgenteProfundidad extends AbstractPlayer {
             Nodo ac = frontera.pop();
             String ka = ac.e.key();
 
-            Integer prevCoste = visitados.get(ka);
-            if (prevCoste != null && prevCoste <= ac.g) continue;
-            visitados.put(ka, ac.g);
-
+            // DFS PURO: Si ya pasamos por aquí, ignoramos la casilla (sin mirar si el camino era mejor)
+            if (visitados.contains(ka)) continue;
+            visitados.add(ka);
 
             if (ac.pr > profMax) profMax = ac.pr;
 
-            // EL GRAN FIX: Ya no exigimos aterrizar (fase==0) para ganar
+            // Si es la meta, cortamos el bucle.
             if (esMeta(ac.e)) { meta = ac; break; }
 
+            // Contamos como expandido si no es meta y realmente va a generar hijos
             nodosExp++;
 
             for (int i = ORDEN.length - 1; i >= 0; i--) {
@@ -297,7 +295,6 @@ public class AgenteProfundidad extends AbstractPlayer {
         return r;
     }
 
-    // Ya no comprobamos e.fase == 0
     private boolean esMeta(Estado e) { return e.x==metaX && e.y==metaY && e.llave; }
 
     private Estado trans(Estado e, ACTIONS a) {
