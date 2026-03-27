@@ -26,6 +26,7 @@ public class AgenteProfundidad extends AbstractPlayer {
     private ArrayList<ACTIONS> plan = null;
     private int nodosExp = 0, profMax = 0;
 
+    // Ajuste de Desempate: Prioridad Derecha y Abajo (hacia la meta)
     private static final ACTIONS[] ORDEN = {
         ACTIONS.ACTION_RIGHT, ACTIONS.ACTION_UP,
         ACTIONS.ACTION_LEFT,  ACTIONS.ACTION_DOWN,
@@ -48,7 +49,6 @@ public class AgenteProfundidad extends AbstractPlayer {
             metaY = gy(portales[0].get(0).position);
         }
 
-        // Registrar las monedas iniciales para la simulación
         ArrayList<Long> ml = new ArrayList<>();
         ArrayList<Observation>[] rec = so.getResourcesPositions();
         if (rec != null) {
@@ -66,15 +66,9 @@ public class AgenteProfundidad extends AbstractPlayer {
         catDir = new HashMap<>();
         catIdx = new HashMap<>();
 
-        // === RADAR AUTODIDACTA INCREMENTAL ===
+        // Radar Inteligente
         HashMap<Integer, int[]> itypeToDir = detectarItypeDireccionesIncremental(so);
 
-        System.out.println("\n[RADAR] Catapultas aprendidas:");
-        for (Map.Entry<Integer, int[]> entry : itypeToDir.entrySet()) {
-            System.out.println(" -> itype " + entry.getKey() + " vuela hacia (" + entry.getValue()[0] + "," + entry.getValue()[1] + ")");
-        }
-
-        // === CONSTRUCCIÓN DEL MAPA MATEMÁTICO FINAL ===
         muro = new boolean[gridW][gridH];
         agua = new boolean[gridW][gridH];
         catDir.clear(); catIdx.clear();
@@ -92,7 +86,7 @@ public class AgenteProfundidad extends AbstractPlayer {
                         long pk = enc(x, y);
                         catDir.put(pk, itypeToDir.get(obs.itype));
                         catList.add(new long[]{pk});
-                        muro[x][y] = false; // Convierte el muro de agua en catapulta pisable
+                        muro[x][y] = false; 
                     }
                 }
             }
@@ -101,13 +95,9 @@ public class AgenteProfundidad extends AbstractPlayer {
         for (long[] cl : catList) catIdx.put(cl[0], ci++);
         numCats = ci;
 
-        System.out.println("DFS init: " + gridW + "x" + gridH + " meta=(" + metaX + "," + metaY + ") cats=" + numCats + "\n");
+        System.out.println("DFS init: " + gridW + "x" + gridH + " meta=(" + metaX + "," + metaY + ") cats=" + numCats);
     }
 
-    /**
-     * El Radar aprende iterativamente. Usa su imaginación matemática para cruzar islas 
-     * ya descubiertas y alcanzar nuevas catapultas desconocidas.
-     */
     private HashMap<Integer, int[]> detectarItypeDireccionesIncremental(StateObservation so) {
         HashMap<Integer, int[]> knownDirs = new HashMap<>();
         HashSet<Integer> targetItypes = new HashSet<>();
@@ -122,7 +112,7 @@ public class AgenteProfundidad extends AbstractPlayer {
                     int x = gx(obs.position), y = gy(obs.position);
                     if (x>=0 && x<gridW && y>=0 && y<gridH) mapItype[x][y] = it;
                     if (it != 0 && it != 2 && it != 3 && it != 18) {
-                        targetItypes.add(it); // Posible catapulta
+                        targetItypes.add(it); 
                     }
                 }
             }
@@ -132,7 +122,6 @@ public class AgenteProfundidad extends AbstractPlayer {
         while (learnedNew && knownDirs.size() < targetItypes.size()) {
             learnedNew = false;
             
-            // Reconstruye el mundo mental con las catapultas que ya conoce
             muro = new boolean[gridW][gridH];
             agua = new boolean[gridW][gridH];
             catDir.clear(); catIdx.clear();
@@ -158,7 +147,6 @@ public class AgenteProfundidad extends AbstractPlayer {
             for (long[] cl : catList) catIdx.put(cl[0], ci++);
             numCats = ci;
 
-            // Lanza una onda mental (BFS) para buscar la catapulta más cercana que AÚN NO conoce
             Queue<Nodo> q = new LinkedList<>();
             HashSet<String> vis = new HashSet<>();
             
@@ -175,7 +163,6 @@ public class AgenteProfundidad extends AbstractPlayer {
                 Nodo ac = q.poll();
                 Estado e = ac.e;
 
-                // Comprueba si está a 1 casilla de una catapulta misteriosa y TIENE moneda para pagar
                 if (e.fase == 0 && e.mon > 0) { 
                     boolean found = false;
                     for (ACTIONS a : ORDEN) {
@@ -196,7 +183,6 @@ public class AgenteProfundidad extends AbstractPlayer {
                     if (found) break;
                 }
 
-                // Genera futuros matemáticos a velocidad luz
                 for (ACTIONS a : ORDEN) {
                     Estado h = trans(ac.e, a);
                     if (h == null) continue;
@@ -208,7 +194,6 @@ public class AgenteProfundidad extends AbstractPlayer {
                 }
             }
 
-            // Si logró imaginar un camino hasta la catapulta desconocida, lo ejecuta de verdad
             if (foundNode != null) {
                 ArrayList<ACTIONS> path = new ArrayList<>();
                 Nodo n = foundNode;
@@ -220,19 +205,18 @@ public class AgenteProfundidad extends AbstractPlayer {
                 StateObservation sim = so.copy();
                 for (ACTIONS a : path) sim.advance(a);
                 
-                sim.advance(enterAction); // ¡Salta a la catapulta!
+                sim.advance(enterAction);
                 if (!sim.isGameOver()) {
                     int px = gx(sim.getAvatarPosition()), py = gy(sim.getAvatarPosition());
                     int[] detectedDir = null;
                     for (int t = 0; t < 15; t++) {
-                        sim.advance(ACTIONS.ACTION_NIL); // Simula el vuelo
+                        sim.advance(ACTIONS.ACTION_NIL);
                         if (sim.isGameOver()) break;
                         Vector2d pos = sim.getAvatarPosition();
                         if (pos != null && sim.getAvatarType() != tipoAvatarNormal) { 
                             int nx = gx(pos), ny = gy(pos);
                             if (nx != px || ny != py) {
                                 detectedDir = new int[]{nx - px, ny - py};
-                                // Normaliza la física matemática
                                 if (detectedDir[0] > 0) detectedDir[0] = 1;
                                 if (detectedDir[0] < 0) detectedDir[0] = -1;
                                 if (detectedDir[1] > 0) detectedDir[1] = 1;
@@ -242,10 +226,10 @@ public class AgenteProfundidad extends AbstractPlayer {
                         }
                     }
                     if (detectedDir != null) {
-                        knownDirs.put(foundItype, detectedDir); // ¡Aprendido!
-                        learnedNew = true; // Reinicia el ciclo para buscar la siguiente
+                        knownDirs.put(foundItype, detectedDir);
+                        learnedNew = true;
                     } else {
-                        targetItypes.remove(foundItype); // Falsa alarma, era un muro raro
+                        targetItypes.remove(foundItype); 
                         learnedNew = true; 
                     }
                 } else {
@@ -253,7 +237,7 @@ public class AgenteProfundidad extends AbstractPlayer {
                     learnedNew = true;
                 }
             } else {
-                break; // Ya no puede alcanzar más islas
+                break;
             }
         }
         return knownDirs;
@@ -283,10 +267,13 @@ public class AgenteProfundidad extends AbstractPlayer {
             if (prevCoste != null && prevCoste <= ac.g) continue;
             visitados.put(ka, ac.g);
 
-            nodosExp++;
+
             if (ac.pr > profMax) profMax = ac.pr;
 
+            // EL GRAN FIX: Ya no exigimos aterrizar (fase==0) para ganar
             if (esMeta(ac.e)) { meta = ac; break; }
+
+            nodosExp++;
 
             for (int i = ORDEN.length - 1; i >= 0; i--) {
                 Estado h = trans(ac.e, ORDEN[i]);
@@ -310,7 +297,8 @@ public class AgenteProfundidad extends AbstractPlayer {
         return r;
     }
 
-    private boolean esMeta(Estado e) { return e.x==metaX && e.y==metaY && e.llave && e.fase==0; }
+    // Ya no comprobamos e.fase == 0
+    private boolean esMeta(Estado e) { return e.x==metaX && e.y==metaY && e.llave; }
 
     private Estado trans(Estado e, ACTIONS a) {
         if (e.fase==0) {
