@@ -16,13 +16,12 @@ public class AgenteProfundidad extends AbstractPlayer {
     private boolean[][] muro, agua;
     private int tipoAvatarNormal;
 
-    private HashMap<Long, int[]> catDir;
-    private HashMap<Long, Integer> catIdx;
+    private HashMap<Long, int[]> catDir;   // pos -> {dx, dy}
+    private HashMap<Long, Integer> catIdx;  // pos -> índice bitmask
     private int numCats;
     private long[] monPos;
     private int numMon;
     private int llaveX = -1, llaveY = -1;
-    
     private boolean catapultasGratis;
 
     private ArrayList<ACTIONS> plan = null;
@@ -30,8 +29,7 @@ public class AgenteProfundidad extends AbstractPlayer {
 
     private static final ACTIONS[] ORDEN = {
         ACTIONS.ACTION_RIGHT, ACTIONS.ACTION_UP,
-        ACTIONS.ACTION_LEFT,  ACTIONS.ACTION_DOWN,
-        ACTIONS.ACTION_NIL
+        ACTIONS.ACTION_LEFT,  ACTIONS.ACTION_DOWN
     };
 
     public AgenteProfundidad(StateObservation so, ElapsedCpuTimer timer) {
@@ -44,12 +42,14 @@ public class AgenteProfundidad extends AbstractPlayer {
         Vector2d ap = so.getAvatarPosition();
         iniX = gx(ap); iniY = gy(ap);
 
+        // Portal (meta)
         ArrayList<Observation>[] portales = so.getPortalsPositions();
         if (portales != null && portales.length > 0 && !portales[0].isEmpty()) {
             metaX = gx(portales[0].get(0).position);
             metaY = gy(portales[0].get(0).position);
         }
 
+        // Recursos: monedas (itype=15) y llave (itype=16)
         ArrayList<Long> ml = new ArrayList<>();
         ArrayList<Observation>[] rec = so.getResourcesPositions();
         if (rec != null) {
@@ -63,199 +63,184 @@ public class AgenteProfundidad extends AbstractPlayer {
         numMon = ml.size();
         monPos = new long[numMon];
         for (int i = 0; i < numMon; i++) monPos[i] = ml.get(i);
-        
         catapultasGratis = (numMon == 0);
 
+        // === Paso 1: Clasificar inmovables ===
+        muro = new boolean[gridW][gridH];
+        agua = new boolean[gridW][gridH];
         catDir = new HashMap<>();
         catIdx = new HashMap<>();
 
-        HashMap<Integer, int[]> itypeToDir = detectarItypeDireccionesIncremental(so);
+        // Catapultas: itypes que no son muro(0), floor(2), agua(3), portal(18)
+        HashSet<Integer> catItypes = new HashSet<>();
+        HashMap<Integer, ArrayList<int[]>> catPosByItype = new HashMap<>();
 
-        muro = new boolean[gridW][gridH];
-        agua = new boolean[gridW][gridH];
-        catDir.clear(); catIdx.clear();
-        ArrayList<long[]> catList = new ArrayList<>();
-        
         ArrayList<Observation>[] inmov = so.getImmovablePositions();
         if (inmov != null) {
             for (ArrayList<Observation> lista : inmov) {
                 for (Observation obs : lista) {
                     int x = gx(obs.position), y = gy(obs.position);
                     if (x < 0 || x >= gridW || y < 0 || y >= gridH) continue;
-                    if (obs.itype == 0) muro[x][y] = true;
-                    else if (obs.itype == 3) { agua[x][y] = true; muro[x][y] = true; }
-                    else if (itypeToDir.containsKey(obs.itype)) {
-                        long pk = enc(x, y);
-                        catDir.put(pk, itypeToDir.get(obs.itype));
-                        catList.add(new long[]{pk});
-                        muro[x][y] = false; 
+
+                    if (obs.itype == 0) {
+                        muro[x][y] = true;
+                    } else if (obs.itype == 3) {
+                        agua[x][y] = true;
+                    } else if (obs.itype != 2 && obs.itype != 18) {
+                        catItypes.add(obs.itype);
+                        catPosByItype.computeIfAbsent(obs.itype, k -> new ArrayList<>())
+                                     .add(new int[]{x, y});
                     }
                 }
             }
         }
+
+        // === Paso 2: Detectar dirección de cada itype de catapulta ===
+        HashMap<Integer, int[]> itypeToDir = detectarDirecciones(so, catItypes, catPosByItype);
+
+        // === Paso 3: Registrar catapultas detectadas ===
         int ci = 0;
-        for (long[] cl : catList) catIdx.put(cl[0], ci++);
+        for (Map.Entry<Integer, ArrayList<int[]>> entry : catPosByItype.entrySet()) {
+            int[] dir = itypeToDir.get(entry.getKey());
+            if (dir == null) continue;
+            for (int[] pos : entry.getValue()) {
+                long pk = enc(pos[0], pos[1]);
+                catDir.put(pk, dir);
+                catIdx.put(pk, ci++);
+            }
+        }
         numCats = ci;
+
+        // Debug
+        System.out.println("INI=(" + iniX + "," + iniY + ") META=(" + metaX + "," + metaY + ")");
+        System.out.println("Llave=(" + llaveX + "," + llaveY + ") numMon=" + numMon + " numCats=" + numCats);
+        System.out.println("catapultasGratis=" + catapultasGratis);
+        System.out.println("catItypes=" + catItypes + " detected=" + itypeToDir.keySet());
+        for (Map.Entry<Integer, int[]> e : itypeToDir.entrySet()) {
+            System.out.println("  itype " + e.getKey() + " -> dir=(" + e.getValue()[0] + "," + e.getValue()[1] + ")");
+        }
+        System.out.println("--- Mapa ---");
+        for (int y = 0; y < gridH; y++) {
+            StringBuilder sb = new StringBuilder();
+            for (int x = 0; x < gridW; x++) {
+                if (x == iniX && y == iniY) sb.append('A');
+                else if (x == metaX && y == metaY) sb.append('G');
+                else if (x == llaveX && y == llaveY) sb.append('K');
+                else if (muro[x][y]) sb.append('#');
+                else if (catDir.containsKey(enc(x, y))) sb.append('C');
+                else if (agua[x][y]) sb.append('~');
+                else if (monIdx(x, y) >= 0) sb.append('$');
+                else sb.append('.');
+            }
+            System.out.println(sb.toString());
+        }
     }
 
-    private HashMap<Integer, int[]> detectarItypeDireccionesIncremental(StateObservation so) {
-        HashMap<Integer, int[]> knownDirs = new HashMap<>();
-        HashSet<Integer> targetItypes = new HashSet<>();
-        int[][] mapItype = new int[gridW][gridH];
-        for (int i = 0; i < gridW; i++) Arrays.fill(mapItype[i], -1);
+    /**
+     * BFS estatal: explora estados de juego reales (incluyendo cadenas de catapultas)
+     * para detectar la dirección de lanzamiento de cada itype de catapulta.
+     * Detecta por:
+     *   (a) Adyacencia en forma normal con >=1 moneda → entrar y observar vuelo
+     *   (b) Cambio de tipo de avatar al volar sobre una catapulta → observar nueva dirección
+     */
+    private HashMap<Integer, int[]> detectarDirecciones(
+            StateObservation so,
+            HashSet<Integer> catItypes,
+            HashMap<Integer, ArrayList<int[]>> catPosByItype) {
 
-        ArrayList<Observation>[] inmov = so.getImmovablePositions();
-        if (inmov != null) {
-            for (ArrayList<Observation> lista : inmov) {
-                for (Observation obs : lista) {
-                    int it = obs.itype;
-                    int x = gx(obs.position), y = gy(obs.position);
-                    if (x>=0 && x<gridW && y>=0 && y<gridH) mapItype[x][y] = it;
-                    if (it != 0 && it != 2 && it != 3 && it != 18 && it != 5) {
-                        targetItypes.add(it); 
-                    }
-                }
-            }
+        // Mapa inverso: posición → itype
+        HashMap<Long, Integer> catItypeByPos = new HashMap<>();
+        for (Map.Entry<Integer, ArrayList<int[]>> e : catPosByItype.entrySet()) {
+            for (int[] pos : e.getValue())
+                catItypeByPos.put(enc(pos[0], pos[1]), e.getKey());
         }
 
-        boolean learnedNew = true;
-        while (learnedNew && knownDirs.size() < targetItypes.size()) {
-            learnedNew = false;
-            muro = new boolean[gridW][gridH];
-            agua = new boolean[gridW][gridH];
-            catDir.clear(); catIdx.clear();
-            ArrayList<long[]> catList = new ArrayList<>();
-            
-            if (inmov != null) {
-                for (ArrayList<Observation> lista : inmov) {
-                    for (Observation obs : lista) {
-                        int x = gx(obs.position), y = gy(obs.position);
-                        if (x < 0 || x >= gridW || y < 0 || y >= gridH) continue;
-                        if (obs.itype == 0) muro[x][y] = true;
-                        else if (obs.itype == 3) { agua[x][y] = true; muro[x][y] = true; }
-                        else if (knownDirs.containsKey(obs.itype)) {
-                            long pk = enc(x, y);
-                            catDir.put(pk, knownDirs.get(obs.itype));
-                            catList.add(new long[]{pk});
-                            muro[x][y] = false; 
-                        }
-                    }
-                }
-            }
-            int ci = 0;
-            for (long[] cl : catList) catIdx.put(cl[0], ci++);
-            numCats = ci;
+        HashMap<Integer, int[]> result = new HashMap<>();
+        if (catItypes.isEmpty()) return result;
 
-            Queue<Nodo> q = new LinkedList<>();
-            HashSet<String> vis = new HashSet<>();
-            
-            boolean tieneLlaveInicial = (llaveX == -1);
-            Estado e0 = new Estado(iniX, iniY, 0, tieneLlaveInicial, (1<<numMon)-1, (1<<numCats)-1, 0, 0, 0);
-            q.add(new Nodo(e0, null, ACTIONS.ACTION_NIL, 0, 0));
-            vis.add(e0.key());
-            
-            Nodo foundNode = null;
-            ACTIONS enterAction = null;
-            int foundItype = -1;
+        ACTIONS[] dirs = {ACTIONS.ACTION_RIGHT, ACTIONS.ACTION_UP,
+                          ACTIONS.ACTION_LEFT,  ACTIONS.ACTION_DOWN};
+        int[][] deltas = {{1,0},{0,-1},{-1,0},{0,1}};
 
-            while (!q.isEmpty()) {
-                Nodo ac = q.poll();
-                Estado e = ac.e;
+        Queue<StateObservation> q = new LinkedList<>();
+        HashSet<String> vis = new HashSet<>();
+        q.add(so.copy());
+        vis.add(statKey(so));
 
-                if (e.fase == 0 && (catapultasGratis || e.mon > 0)) { 
-                    boolean found = false;
-                    for (ACTIONS a : ORDEN) {
-                        if (a == ACTIONS.ACTION_NIL) continue;
-                        int[] d = delta(a);
-                        int nx = e.x + d[0], ny = e.y + d[1];
-                        if (nx>=0 && nx<gridW && ny>=0 && ny<gridH) {
-                            int it = mapItype[nx][ny];
-                            if (targetItypes.contains(it) && !knownDirs.containsKey(it)) {
-                                foundNode = ac;
-                                enterAction = a;
-                                foundItype = it;
-                                found = true;
-                                break;
+        int maxIter = 5000;
+        while (!q.isEmpty() && maxIter-- > 0 && result.size() < catItypes.size()) {
+            StateObservation s = q.poll();
+            if (s.isGameOver()) continue;
+
+            boolean isNormal = (s.getAvatarType() == tipoAvatarNormal);
+            int ax = gx(s.getAvatarPosition()), ay = gy(s.getAvatarPosition());
+
+            if (isNormal) {
+                // (a) Comprobar adyacencia a catapultas no detectadas con >=1 moneda
+                int coins = s.getAvatarResources().getOrDefault(15, 0);
+                if (coins > 0) {
+                    for (int d = 0; d < 4; d++) {
+                        int nx = ax + deltas[d][0], ny = ay + deltas[d][1];
+                        if (nx < 0 || nx >= gridW || ny < 0 || ny >= gridH) continue;
+                        Integer itAtPos = catItypeByPos.get(enc(nx, ny));
+                        if (itAtPos == null || result.containsKey(itAtPos)) continue;
+
+                        StateObservation test = s.copy();
+                        test.advance(dirs[d]);
+                        if (test.isGameOver()) continue;
+                        int sx = gx(test.getAvatarPosition()), sy = gy(test.getAvatarPosition());
+                        for (int t = 0; t < 20; t++) {
+                            test.advance(ACTIONS.ACTION_NIL);
+                            if (test.isGameOver()) break;
+                            if (test.getAvatarType() != tipoAvatarNormal) {
+                                int bx = gx(test.getAvatarPosition()), by = gy(test.getAvatarPosition());
+                                if (bx != sx || by != sy) {
+                                    result.put(itAtPos, new int[]{Integer.signum(bx-sx), Integer.signum(by-sy)});
+                                    break;
+                                }
                             }
                         }
                     }
-                    if (found) break;
                 }
-
-                for (ACTIONS a : ORDEN) {
-                    Estado h = trans(ac.e, a);
-                    if (h == null) continue;
-                    String hk = h.key();
-                    if (!vis.contains(hk)) {
-                        vis.add(hk);
-                        q.add(new Nodo(h, ac, a, ac.g + 1, ac.pr + 1));
-                    }
-                }
-            }
-
-            if (foundNode != null) {
-                // Nuevo Radar Blindado: Filtra las acciones de vuelo para no desincronizarse
-                ArrayList<ACTIONS> meaningfulPath = new ArrayList<>();
-                Nodo n = foundNode;
-                while (n.padre != null) {
-                    if (n.padre.e.fase == 0 && n.accion != ACTIONS.ACTION_NIL) {
-                        meaningfulPath.add(0, n.accion);
-                    }
-                    n = n.padre;
-                }
-                
-                StateObservation sim = so.copy();
-                int pathIdx = 0;
-                int timeout = 1000;
-                while (pathIdx < meaningfulPath.size() && timeout-- > 0 && !sim.isGameOver()) {
-                    if (sim.getAvatarType() != tipoAvatarNormal) {
-                        sim.advance(ACTIONS.ACTION_NIL); // Si está volando en la simulación, espera
-                    } else {
-                        sim.advance(meaningfulPath.get(pathIdx));
-                        pathIdx++;
-                    }
-                }
-                
-                while (sim.getAvatarType() != tipoAvatarNormal && timeout-- > 0 && !sim.isGameOver()) {
-                    sim.advance(ACTIONS.ACTION_NIL);
-                }
-                
-                sim.advance(enterAction);
-                if (!sim.isGameOver()) {
-                    int px = gx(sim.getAvatarPosition()), py = gy(sim.getAvatarPosition());
-                    int[] detectedDir = null;
-                    for (int t = 0; t < 15; t++) {
-                        sim.advance(ACTIONS.ACTION_NIL);
-                        if (sim.isGameOver()) break;
-                        Vector2d pos = sim.getAvatarPosition();
-                        if (pos != null && sim.getAvatarType() != tipoAvatarNormal) { 
-                            int nx = gx(pos), ny = gy(pos);
-                            if (nx != px || ny != py) {
-                                detectedDir = new int[]{nx - px, ny - py};
-                                if (detectedDir[0] > 0) detectedDir[0] = 1;
-                                if (detectedDir[0] < 0) detectedDir[0] = -1;
-                                if (detectedDir[1] > 0) detectedDir[1] = 1;
-                                if (detectedDir[1] < 0) detectedDir[1] = -1;
-                                break;
-                            }
-                        }
-                    }
-                    if (detectedDir != null) {
-                        knownDirs.put(foundItype, detectedDir);
-                        learnedNew = true;
-                    } else {
-                        targetItypes.remove(foundItype); 
-                        learnedNew = true; 
-                    }
-                } else {
-                    targetItypes.remove(foundItype);
-                    learnedNew = true;
+                // Expandir en forma normal
+                for (ACTIONS dir : dirs) {
+                    StateObservation child = s.copy();
+                    child.advance(dir);
+                    if (child.isGameOver()) continue;
+                    String k = statKey(child);
+                    if (!vis.contains(k)) { vis.add(k); q.add(child); }
                 }
             } else {
-                break;
+                // (b) Forma bala: avanzar con NIL y detectar cambio de dirección
+                StateObservation child = s.copy();
+                child.advance(ACTIONS.ACTION_NIL);
+                if (!child.isGameOver()) {
+                    if (child.getAvatarType() != s.getAvatarType()) {
+                        // El tipo cambió: la bala pasó por una catapulta
+                        int bx = gx(child.getAvatarPosition()), by = gy(child.getAvatarPosition());
+                        Integer itAtPos = catItypeByPos.get(enc(bx, by));
+                        if (itAtPos != null && !result.containsKey(itAtPos)) {
+                            StateObservation test = child.copy();
+                            test.advance(ACTIONS.ACTION_NIL);
+                            if (!test.isGameOver()) {
+                                int tx = gx(test.getAvatarPosition()), ty = gy(test.getAvatarPosition());
+                                if (tx != bx || ty != by)
+                                    result.put(itAtPos, new int[]{Integer.signum(tx-bx), Integer.signum(ty-by)});
+                            }
+                        }
+                    }
+                    String k = statKey(child);
+                    if (!vis.contains(k)) { vis.add(k); q.add(child); }
+                }
             }
         }
-        return knownDirs;
+        return result;
+    }
+
+    private String statKey(StateObservation so) {
+        int ax = gx(so.getAvatarPosition()), ay = gy(so.getAvatarPosition());
+        int coins = so.getAvatarResources().getOrDefault(15, 0);
+        return ax + "," + ay + "," + coins + "," + so.getAvatarType();
     }
 
     @Override
@@ -267,12 +252,11 @@ public class AgenteProfundidad extends AbstractPlayer {
 
     private ArrayList<ACTIONS> buscarDFS() {
         Stack<Nodo> frontera = new Stack<>();
-        
-        // RESTAURADO EL HASHMAP: Esto es lo que salva el Mapa 1 (150 nodos / 107 acciones)
-        HashMap<String, Integer> visitados = new HashMap<>();
+        HashSet<String> visitados = new HashSet<>();
 
         boolean tieneLlaveInicial = (llaveX == -1);
-        Estado e0 = new Estado(iniX, iniY, 0, tieneLlaveInicial, (1<<numMon)-1, (1<<numCats)-1, 0, 0, 0);
+        Estado e0 = new Estado(iniX, iniY, 0, tieneLlaveInicial,
+                (1 << numMon) - 1, (1 << numCats) - 1, 0, 0, 0);
         frontera.push(new Nodo(e0, null, ACTIONS.ACTION_NIL, 0, 0));
         Nodo meta = null;
 
@@ -280,21 +264,24 @@ public class AgenteProfundidad extends AbstractPlayer {
             Nodo ac = frontera.pop();
             String ka = ac.e.key();
 
-            // Poda por Costes: Permite des-visitar casillas si encontramos una ruta mejor
-            Integer prevCoste = visitados.get(ka);
-            if (prevCoste != null && prevCoste <= ac.g) continue;
-            visitados.put(ka, ac.g);
+            if (visitados.contains(ka)) continue;
+            visitados.add(ka);
 
             if (ac.pr > profMax) profMax = ac.pr;
-
             if (esMeta(ac.e)) { meta = ac; break; }
-
             nodosExp++;
 
-            for (int i = ORDEN.length - 1; i >= 0; i--) {
-                Estado h = trans(ac.e, ORDEN[i]);
-                if (h == null) continue;
-                frontera.push(new Nodo(h, ac, ORDEN[i], ac.g + 1, ac.pr + 1));
+            if (ac.e.fase == 0) {
+                for (int i = ORDEN.length - 1; i >= 0; i--) {
+                    Estado h = trans(ac.e, ORDEN[i]);
+                    if (h == null) continue;
+                    frontera.push(new Nodo(h, ac, ORDEN[i], ac.g + 1, ac.pr + 1));
+                }
+            } else {
+                Estado h = trans(ac.e, ACTIONS.ACTION_NIL);
+                if (h != null) {
+                    frontera.push(new Nodo(h, ac, ACTIONS.ACTION_NIL, ac.g + 1, ac.pr + 1));
+                }
             }
         }
 
@@ -313,71 +300,104 @@ public class AgenteProfundidad extends AbstractPlayer {
         return r;
     }
 
-    private boolean esMeta(Estado e) { return e.x==metaX && e.y==metaY && e.llave; }
+    private boolean esMeta(Estado e) {
+        return e.x == metaX && e.y == metaY && e.llave && e.fase == 0;
+    }
 
     private Estado trans(Estado e, ACTIONS a) {
-        if (e.fase==0) {
-            if (a==ACTIONS.ACTION_NIL) return null;
-            int[] d=delta(a); int nx=e.x+d[0], ny=e.y+d[1];
-            if (nx<0||nx>=gridW||ny<0||ny>=gridH) return null;
+        if (e.fase == 0) {
+            if (a == ACTIONS.ACTION_NIL) return null;
+            int[] d = delta(a);
+            int nx = e.x + d[0], ny = e.y + d[1];
+            if (nx < 0 || nx >= gridW || ny < 0 || ny >= gridH) return null;
             if (muro[nx][ny]) return null;
-            if (nx==metaX&&ny==metaY&&!e.llave) return null;
-            int m=e.mon; boolean l=e.llave; int mB=e.mB, cB=e.cB;
-            int mi=monIdx(nx,ny); if(mi>=0&&(mB&(1<<mi))!=0&&m<5){m++;mB&=~(1<<mi);}
-            if(nx==llaveX&&ny==llaveY&&!l) l=true;
-            long pk=enc(nx,ny); Integer ci=catIdx.get(pk);
-            if(ci!=null&&(cB&(1<<ci))!=0) {
-                if(!catapultasGratis && m<=0) return null;
-                if(!catapultasGratis) m--; 
-                
-                int[] dir=catDir.get(pk); cB&=~(1<<ci);
-                return new Estado(nx,ny,m,l,mB,cB,1,dir[0],dir[1]);
+            if (agua[nx][ny]) return null;
+            if (nx == metaX && ny == metaY && !e.llave) return null;
+
+            int m = e.mon; boolean l = e.llave; int mB = e.mB, cB = e.cB;
+            int mi = monIdx(nx, ny);
+            if (mi >= 0 && (mB & (1 << mi)) != 0 && m < 5) { m++; mB &= ~(1 << mi); }
+            if (nx == llaveX && ny == llaveY && !l) l = true;
+
+            long pk = enc(nx, ny);
+            Integer ci = catIdx.get(pk);
+            if (ci != null && (cB & (1 << ci)) != 0) {
+                if (!catapultasGratis && m <= 0) return null;
+                if (!catapultasGratis) m--;
+                int[] dir = catDir.get(pk);
+                cB &= ~(1 << ci);
+                return new Estado(nx, ny, m, l, mB, cB, 1, dir[0], dir[1]);
             }
-            return new Estado(nx,ny,m,l,mB,cB,0,0,0);
-        } else if (e.fase==1) {
-            if(a!=ACTIONS.ACTION_NIL) return null;
-            return new Estado(e.x,e.y,e.mon,e.llave,e.mB,e.cB,2,e.vdx,e.vdy);
-        } else if (e.fase==2) {
-            if(a!=ACTIONS.ACTION_NIL) return null;
-            int tx=e.x+e.vdx, ty=e.y+e.vdy;
-            boolean col=(tx<0||tx>=gridW||ty<0||ty>=gridH);
-            if(!col) col=(muro[tx][ty]&&!agua[tx][ty])||(tx==metaX&&ty==metaY&&!e.llave);
-            if(col) {
+            return new Estado(nx, ny, m, l, mB, cB, 0, 0, 0);
+
+        } else if (e.fase == 1) {
+            if (a != ACTIONS.ACTION_NIL) return null;
+            return new Estado(e.x, e.y, e.mon, e.llave, e.mB, e.cB, 2, e.vdx, e.vdy);
+
+        } else if (e.fase == 2) {
+            if (a != ACTIONS.ACTION_NIL) return null;
+            int tx = e.x + e.vdx, ty = e.y + e.vdy;
+            boolean col = (tx < 0 || tx >= gridW || ty < 0 || ty >= gridH);
+            if (!col) col = muro[tx][ty] || (tx == metaX && ty == metaY && !e.llave);
+
+            if (col) {
                 if (agua[e.x][e.y]) return null;
-                return new Estado(e.x,e.y,e.mon,e.llave,e.mB,e.cB,0,0,0);
+                return new Estado(e.x, e.y, e.mon, e.llave, e.mB, e.cB, 0, 0, 0);
             }
-            int nx=tx,ny=ty,m=e.mon;boolean l=e.llave;int mB=e.mB,cB=e.cB,vx=e.vdx,vy=e.vdy;
-            int mi=monIdx(nx,ny);if(mi>=0&&(mB&(1<<mi))!=0&&m<5){m++;mB&=~(1<<mi);}
-            if(nx==llaveX&&ny==llaveY&&!l) l=true;
-            long pk=enc(nx,ny);Integer ci=catIdx.get(pk);
-            if(ci!=null&&(cB&(1<<ci))!=0){
-                int[] dir=catDir.get(pk);cB&=~(1<<ci);
-                return new Estado(nx,ny,m,l,mB,cB,3,dir[0],dir[1]);
+
+            int nx = tx, ny = ty;
+            int m = e.mon; boolean l = e.llave; int mB = e.mB, cB = e.cB;
+            int mi = monIdx(nx, ny);
+            if (mi >= 0 && (mB & (1 << mi)) != 0 && m < 5) { m++; mB &= ~(1 << mi); }
+            if (nx == llaveX && ny == llaveY && !l) l = true;
+
+            long pk = enc(nx, ny);
+            Integer ci = catIdx.get(pk);
+            if (ci != null && (cB & (1 << ci)) != 0) {
+                int[] dir = catDir.get(pk);
+                cB &= ~(1 << ci);
+                return new Estado(nx, ny, m, l, mB, cB, 3, dir[0], dir[1]);
             }
-            return new Estado(nx,ny,m,l,mB,cB,2,vx,vy);
-        } else if (e.fase==3) {
-            if(a!=ACTIONS.ACTION_NIL) return null;
-            return new Estado(e.x,e.y,e.mon,e.llave,e.mB,e.cB,2,e.vdx,e.vdy);
+            return new Estado(nx, ny, m, l, mB, cB, 2, e.vdx, e.vdy);
+
+        } else if (e.fase == 3) {
+            if (a != ACTIONS.ACTION_NIL) return null;
+            return new Estado(e.x, e.y, e.mon, e.llave, e.mB, e.cB, 2, e.vdx, e.vdy);
         }
         return null;
     }
 
-    private int gx(Vector2d p) { return (int)(p.x/blockSize); }
-    private int gy(Vector2d p) { return (int)(p.y/blockSize); }
-    private long enc(int x,int y) { return (long)y*gridW+x; }
+    private int gx(Vector2d p) { return (int)(p.x / blockSize); }
+    private int gy(Vector2d p) { return (int)(p.y / blockSize); }
+    private long enc(int x, int y) { return (long)y * gridW + x; }
+
     private int[] delta(ACTIONS a) {
-        switch(a){case ACTION_RIGHT:return new int[]{1,0};case ACTION_LEFT:return new int[]{-1,0};
-        case ACTION_UP:return new int[]{0,-1};case ACTION_DOWN:return new int[]{0,1};default:return new int[]{0,0};}
+        switch (a) {
+            case ACTION_RIGHT: return new int[]{1, 0};
+            case ACTION_LEFT:  return new int[]{-1, 0};
+            case ACTION_UP:    return new int[]{0, -1};
+            case ACTION_DOWN:  return new int[]{0, 1};
+            default:           return new int[]{0, 0};
+        }
     }
-    private int monIdx(int x,int y) {
-        long k=enc(x,y);for(int i=0;i<numMon;i++)if(monPos[i]==k)return i;return -1;
+
+    private int monIdx(int x, int y) {
+        long k = enc(x, y);
+        for (int i = 0; i < numMon; i++) if (monPos[i] == k) return i;
+        return -1;
     }
 
     private static class Estado {
-        int x,y,mon,mB,cB,fase,vdx,vdy;boolean llave;
-        Estado(int x,int y,int m,boolean l,int mB,int cB,int f,int vx,int vy){
-            this.x=x;this.y=y;mon=m;llave=l;this.mB=mB;this.cB=cB;fase=f;vdx=vx;vdy=vy;}
-        String key(){return x+","+y+","+mon+","+(llave?1:0)+","+mB+","+cB+","+fase+","+vdx+","+vdy;}
+        int x, y, mon, mB, cB, fase, vdx, vdy;
+        boolean llave;
+        Estado(int x, int y, int m, boolean l, int mB, int cB, int f, int vx, int vy) {
+            this.x = x; this.y = y; mon = m; llave = l;
+            this.mB = mB; this.cB = cB; fase = f; vdx = vx; vdy = vy;
+        }
+        String key() {
+            return x + "," + y + "," + mon + "," + (llave ? 1 : 0) + ","
+                 + mB + "," + cB + "," + fase + "," + vdx + "," + vdy;
+        }
     }
 
     private static class Nodo {
