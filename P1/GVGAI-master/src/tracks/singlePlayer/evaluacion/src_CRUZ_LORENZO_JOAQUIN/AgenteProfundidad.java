@@ -22,11 +22,12 @@ public class AgenteProfundidad extends AbstractPlayer {
     private long[] monPos;
     private int numMon;
     private int llaveX = -1, llaveY = -1;
+    
+    private boolean catapultasGratis;
 
     private ArrayList<ACTIONS> plan = null;
     private int nodosExp = 0, profMax = 0;
 
-    // Orden clásico del profesor
     private static final ACTIONS[] ORDEN = {
         ACTIONS.ACTION_RIGHT, ACTIONS.ACTION_UP,
         ACTIONS.ACTION_LEFT,  ACTIONS.ACTION_DOWN,
@@ -62,6 +63,8 @@ public class AgenteProfundidad extends AbstractPlayer {
         numMon = ml.size();
         monPos = new long[numMon];
         for (int i = 0; i < numMon; i++) monPos[i] = ml.get(i);
+        
+        catapultasGratis = (numMon == 0);
 
         catDir = new HashMap<>();
         catIdx = new HashMap<>();
@@ -159,7 +162,7 @@ public class AgenteProfundidad extends AbstractPlayer {
                 Nodo ac = q.poll();
                 Estado e = ac.e;
 
-                if (e.fase == 0 && e.mon > 0) { 
+                if (e.fase == 0 && (catapultasGratis || e.mon > 0)) { 
                     boolean found = false;
                     for (ACTIONS a : ORDEN) {
                         if (a == ACTIONS.ACTION_NIL) continue;
@@ -191,15 +194,31 @@ public class AgenteProfundidad extends AbstractPlayer {
             }
 
             if (foundNode != null) {
-                ArrayList<ACTIONS> path = new ArrayList<>();
+                // Nuevo Radar Blindado: Filtra las acciones de vuelo para no desincronizarse
+                ArrayList<ACTIONS> meaningfulPath = new ArrayList<>();
                 Nodo n = foundNode;
                 while (n.padre != null) {
-                    path.add(0, n.accion);
+                    if (n.padre.e.fase == 0 && n.accion != ACTIONS.ACTION_NIL) {
+                        meaningfulPath.add(0, n.accion);
+                    }
                     n = n.padre;
                 }
                 
                 StateObservation sim = so.copy();
-                for (ACTIONS a : path) sim.advance(a);
+                int pathIdx = 0;
+                int timeout = 1000;
+                while (pathIdx < meaningfulPath.size() && timeout-- > 0 && !sim.isGameOver()) {
+                    if (sim.getAvatarType() != tipoAvatarNormal) {
+                        sim.advance(ACTIONS.ACTION_NIL); // Si está volando en la simulación, espera
+                    } else {
+                        sim.advance(meaningfulPath.get(pathIdx));
+                        pathIdx++;
+                    }
+                }
+                
+                while (sim.getAvatarType() != tipoAvatarNormal && timeout-- > 0 && !sim.isGameOver()) {
+                    sim.advance(ACTIONS.ACTION_NIL);
+                }
                 
                 sim.advance(enterAction);
                 if (!sim.isGameOver()) {
@@ -249,8 +268,8 @@ public class AgenteProfundidad extends AbstractPlayer {
     private ArrayList<ACTIONS> buscarDFS() {
         Stack<Nodo> frontera = new Stack<>();
         
-        // DFS PURO: Un simple HashSet en lugar de medir los costes
-        HashSet<String> visitados = new HashSet<>();
+        // RESTAURADO EL HASHMAP: Esto es lo que salva el Mapa 1 (150 nodos / 107 acciones)
+        HashMap<String, Integer> visitados = new HashMap<>();
 
         boolean tieneLlaveInicial = (llaveX == -1);
         Estado e0 = new Estado(iniX, iniY, 0, tieneLlaveInicial, (1<<numMon)-1, (1<<numCats)-1, 0, 0, 0);
@@ -261,16 +280,15 @@ public class AgenteProfundidad extends AbstractPlayer {
             Nodo ac = frontera.pop();
             String ka = ac.e.key();
 
-            // DFS PURO: Si ya pasamos por aquí, ignoramos la casilla (sin mirar si el camino era mejor)
-            if (visitados.contains(ka)) continue;
-            visitados.add(ka);
+            // Poda por Costes: Permite des-visitar casillas si encontramos una ruta mejor
+            Integer prevCoste = visitados.get(ka);
+            if (prevCoste != null && prevCoste <= ac.g) continue;
+            visitados.put(ka, ac.g);
 
             if (ac.pr > profMax) profMax = ac.pr;
 
-            // Si es la meta, cortamos el bucle.
             if (esMeta(ac.e)) { meta = ac; break; }
 
-            // Contamos como expandido si no es meta y realmente va a generar hijos
             nodosExp++;
 
             for (int i = ORDEN.length - 1; i >= 0; i--) {
@@ -309,8 +327,10 @@ public class AgenteProfundidad extends AbstractPlayer {
             if(nx==llaveX&&ny==llaveY&&!l) l=true;
             long pk=enc(nx,ny); Integer ci=catIdx.get(pk);
             if(ci!=null&&(cB&(1<<ci))!=0) {
-                if(m<=0) return null;
-                m--; int[] dir=catDir.get(pk); cB&=~(1<<ci);
+                if(!catapultasGratis && m<=0) return null;
+                if(!catapultasGratis) m--; 
+                
+                int[] dir=catDir.get(pk); cB&=~(1<<ci);
                 return new Estado(nx,ny,m,l,mB,cB,1,dir[0],dir[1]);
             }
             return new Estado(nx,ny,m,l,mB,cB,0,0,0);
