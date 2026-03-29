@@ -26,8 +26,8 @@ public class Test {
 		String sampleOLETSController = "tracks.singlePlayer.advanced.olets.Agent";
 
 		// Mi agente de Depth First Search
-		String miAgenteDFS = "tracks.singlePlayer.evaluacion.src_CRUZ_LORENZO_JOAQUIN.AgenteProfundidad"; // <- El nombre de mi agente, con el paquete incluido
-		//String miAgenteDFS = "tracks.singlePlayer.evaluacion.src_CRUZ_LORENZO_JOAQUIN.AgenteAStar"; // <- El nombre de mi agente, con el paquete incluido
+		//String miAgenteDFS = "tracks.singlePlayer.evaluacion.src_CRUZ_LORENZO_JOAQUIN.AgenteProfundidad"; // <- El nombre de mi agente, con el paquete incluido
+		String miAgenteDFS = "tracks.singlePlayer.evaluacion.src_CRUZ_LORENZO_JOAQUIN.AgenteAStar"; // <- El nombre de mi agente, con el paquete incluido
 		//String miAgenteDFS = "tracks.singlePlayer.evaluacion.src_CRUZ_LORENZO_JOAQUIN.AgenteRTAStar"; // <- El nombre de mi agente, con el paquete incluido
 		//String miAgenteDFS = "tracks.singlePlayer.evaluacion.src_CRUZ_LORENZO_JOAQUIN.AgenteLRTAStarK"; // <- El nombre de mi agente, con el paquete incluido
 
