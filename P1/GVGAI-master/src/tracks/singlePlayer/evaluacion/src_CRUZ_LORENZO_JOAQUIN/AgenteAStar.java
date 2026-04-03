@@ -125,6 +125,9 @@ public class AgenteAStar extends AbstractPlayer {
         llavePos = new long[numLlaves];
         for (int i = 0; i < numLlaves; i++) llavePos[i] = kl.get(i);
         catapultasGratis = (numMon == 0);
+
+        System.out.println("Numero de monedas: " + numMon);
+        System.out.println("Numero de llaves: " + numLlaves);
     }
 
     // =========================================================
@@ -249,6 +252,8 @@ public class AgenteAStar extends AbstractPlayer {
         mp.setNumAccionesPlan(meta != null ? r.size() : -1);
         mp.printMetrics();
         return r;
+
+        
     }
 
     // =========================================================
@@ -383,7 +388,7 @@ public class AgenteAStar extends AbstractPlayer {
 
         String key() {
             return x + "," + y + "," + mon + "," + (llave ? 1 : 0) + ","
-                 + mB + "," + lB + "," + cB + "," + fase + "," + vdx + "," + vdy;
+                 + cB + "," + fase + "," + vdx + "," + vdy;
         }
     }
 
