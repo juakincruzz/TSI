@@ -9,19 +9,7 @@ import tools.ElapsedCpuTimer;
 import tools.Vector2d;
 import tracks.singlePlayer.MetricsProvider;
 
-/**
- * Agente RTA* — Práctica 1 TSI (UGR 2025-26)
- *
- * Búsqueda en tiempo real: en cada tick expande el nodo actual,
- * se mueve al mejor vecino y actualiza h(actual) con el 2º mínimo.
- *
- * Heurística: Manhattan considerando llave y portal.
- * Tabla heurística indexada SOLO por posición (x, y).
- * Orden de expansión/desempate: R, U, L, D.
- */
 public class AgenteRTAStar extends AbstractPlayer {
-
-    private static final boolean DEBUG = true;
 
     private int blockSize, gridW, gridH;
     private int metaX, metaY, iniX, iniY;
@@ -33,24 +21,25 @@ public class AgenteRTAStar extends AbstractPlayer {
 
     private long[] monPos;
     private int numMon;
-    private int llaveX = -1, llaveY = -1;
+    private long[] llavePos;
+    private int numLlaves;
     private boolean catapultasGratis;
 
     private Estado actual;
-    private HashMap<Long, Double> tablaH;  // clave: enc(x,y) solo posición
+    private HashMap<Long, Double> tablaH;
     private int nodosExp = 0;
     private boolean finalizado = false;
 
     private static final ACTIONS[] ORDEN = {
         ACTIONS.ACTION_RIGHT, ACTIONS.ACTION_UP,
-        ACTIONS.ACTION_LEFT,  ACTIONS.ACTION_DOWN
+        ACTIONS.ACTION_LEFT, ACTIONS.ACTION_DOWN
     };
 
     private static int[] catapultDir(int itype) {
         switch (itype) {
-            case 5: return new int[]{0, 1};
+            case 5: return new int[]{0,  1};
             case 6: return new int[]{0, -1};
-            case 7: return new int[]{1, 0};
+            case 7: return new int[]{1,  0};
             case 8: return new int[]{-1, 0};
             default: return null;
         }
@@ -61,8 +50,8 @@ public class AgenteRTAStar extends AbstractPlayer {
         blockSize = so.getBlockSize();
         gridW = so.getObservationGrid().length;
         gridH = so.getObservationGrid()[0].length;
-        muro = new boolean[gridW][gridH];
-        agua = new boolean[gridW][gridH];
+        muro  = new boolean[gridW][gridH];
+        agua  = new boolean[gridW][gridH];
         catDir = new HashMap<>();
         catIdx = new HashMap<>();
         tablaH = new HashMap<>();
@@ -70,12 +59,14 @@ public class AgenteRTAStar extends AbstractPlayer {
         Vector2d ap = so.getAvatarPosition();
         iniX = gx(ap); iniY = gy(ap);
 
+        // Portal
         ArrayList<Observation>[] portales = so.getPortalsPositions();
         if (portales != null && portales.length > 0 && !portales[0].isEmpty()) {
             metaX = gx(portales[0].get(0).position);
             metaY = gy(portales[0].get(0).position);
         }
 
+        // Inmovables
         ArrayList<long[]> catList = new ArrayList<>();
         ArrayList<Observation>[] inmov = so.getImmovablePositions();
         if (inmov != null) {
@@ -103,143 +94,124 @@ public class AgenteRTAStar extends AbstractPlayer {
         for (long[] cl : catList) catIdx.put(cl[0], ci++);
         numCats = ci;
 
+        // Monedas y llaves
         ArrayList<Long> ml = new ArrayList<>();
+        ArrayList<Long> kl = new ArrayList<>();
         ArrayList<Observation>[] rec = so.getResourcesPositions();
         if (rec != null) {
             for (ArrayList<Observation> lista : rec) {
                 for (Observation obs : lista) {
-                    if (obs.itype == 15) ml.add(enc(gx(obs.position), gy(obs.position)));
-                    else if (obs.itype == 16) { llaveX = gx(obs.position); llaveY = gy(obs.position); }
+                    if (obs.itype == 15) {
+                        ml.add(enc(gx(obs.position), gy(obs.position)));
+                    } else if (obs.itype == 16) {
+                        int kx = gx(obs.position), ky = gy(obs.position);
+                        if (kx != iniX || ky != iniY)
+                            kl.add(enc(kx, ky));
+                    }
                 }
             }
         }
         numMon = ml.size();
         monPos = new long[numMon];
         for (int i = 0; i < numMon; i++) monPos[i] = ml.get(i);
+        numLlaves = kl.size();
+        llavePos  = new long[numLlaves];
+        for (int i = 0; i < numLlaves; i++) llavePos[i] = kl.get(i);
         catapultasGratis = (numMon == 0);
 
-        boolean tieneLlaveInicial = (llaveX == -1);
-        actual = new Estado(iniX, iniY, 0, tieneLlaveInicial,
-            (1 << numMon) - 1, (1 << numCats) - 1, 0, 0, 0);
-
-        if (DEBUG) {
-            System.out.println("=== RTA* DEBUG v5 ===");
-            System.out.println("Inicio: (" + iniX + "," + iniY + ") Meta: (" + metaX + "," + metaY + ")");
-            System.out.println("Llave: (" + llaveX + "," + llaveY + ") Monedas: " + numMon + " Catapultas: " + numCats);
-        }
+        actual = new Estado(iniX, iniY, 0, false,
+                (1 << numMon)    - 1,
+                (1 << numLlaves) - 1,
+                (1 << numCats)   - 1,
+                0, 0, 0);
     }
 
+    // =========================================================
+    // ACT — implementación fiel al pseudocódigo RTA*
+    //
+    // actual = nodo_inicial
+    // while True:
+    //   if actual == objetivo: break
+    //   S = sucesores(actual)
+    //   foreach sucesor in S:
+    //     f(sucesor) = h(sucesor) + distance(actual, sucesor)
+    //   z          = argmin f(y) para y en S
+    //   segundo_min = Segundo_Mínimo({f(y) | y en S})
+    //   h(actual)  = max(h(actual), segundo_min)
+    //   actual     = z
+    // =========================================================
     @Override
     public ACTIONS act(StateObservation so, ElapsedCpuTimer timer) {
         if (finalizado) return ACTIONS.ACTION_NIL;
 
-        nodosExp++;
+        if (actual.fase != 3) nodosExp++;
 
+        // if actual == objetivo: break
         if (esMeta(actual)) {
-            if (DEBUG) System.out.println("META alcanzada en tick " + nodosExp);
             finalizado = true;
             fijarMetricas(true);
             return ACTIONS.ACTION_NIL;
         }
 
-        ACTIONS[] acciones;
-        if (actual.fase == 0) {
-            acciones = ORDEN;
-        } else {
-            acciones = new ACTIONS[]{ACTIONS.ACTION_NIL};
-        }
+        // S = sucesores(actual)
+        ACTIONS[] acciones = (actual.fase == 0) ? ORDEN
+                : new ACTIONS[]{ACTIONS.ACTION_NIL};
 
-        ArrayList<ACTIONS> accionesValidas = new ArrayList<>();
-        ArrayList<Estado> sucesoresValidos = new ArrayList<>();
-        ArrayList<Double> costesF = new ArrayList<>();
+        List<ACTIONS> accionesValidas  = new ArrayList<>();
+        List<Estado>  sucesoresValidos = new ArrayList<>();
+        List<Double>  costesF         = new ArrayList<>();
 
         for (ACTIONS a : acciones) {
             Estado suc = trans(actual, a);
             if (suc == null) continue;
-            double hSuc = getH(suc);
-            double fSuc = 1.0 + hSuc;
+            // f(sucesor) = h(sucesor) + distance(actual, sucesor)  [distance=1]
+            double fSuc = getH(suc) + 1.0;
             accionesValidas.add(a);
             sucesoresValidos.add(suc);
             costesF.add(fSuc);
         }
 
         if (accionesValidas.isEmpty()) {
-            if (DEBUG) System.out.println("MUERTE (sin sucesores) tick=" + nodosExp
-                + " pos=(" + actual.x + "," + actual.y + ") fase=" + actual.fase
-                + " llave=" + actual.llave + " mon=" + actual.mon);
             finalizado = true;
             fijarMetricas(false);
             return ACTIONS.ACTION_NIL;
         }
 
+        // z = argmin f(y)  [desempate: orden R,U,L,D]
         int mejorIdx = 0;
         double mejorF = costesF.get(0);
         for (int i = 1; i < costesF.size(); i++) {
             if (costesF.get(i) < mejorF) {
-                mejorF = costesF.get(i);
+                mejorF   = costesF.get(i);
                 mejorIdx = i;
             }
         }
 
+        // segundo_min = Segundo_Mínimo({f(y) | y en S})
         double segundoMin;
         if (costesF.size() == 1) {
             segundoMin = costesF.get(0);
         } else {
-            segundoMin = Double.MAX_VALUE;
-            for (int i = 0; i < costesF.size(); i++) {
-                if (i != mejorIdx && costesF.get(i) < segundoMin) {
-                    segundoMin = costesF.get(i);
-                }
-            }
+            // Ordenamos para sacar el segundo valor más pequeño
+            List<Double> sorted = new ArrayList<>(costesF);
+            Collections.sort(sorted);
+            segundoMin = sorted.get(1);
         }
 
-        if (DEBUG) {
-            StringBuilder sb = new StringBuilder();
-            sb.append("T").append(nodosExp).append(" (").append(actual.x).append(",").append(actual.y)
-              .append(") f=").append(actual.fase)
-              .append(" llave=").append(actual.llave ? "Y" : "N")
-              .append(" mon=").append(actual.mon)
-              .append(" h=").append(String.format("%.0f", getH(actual)));
-            sb.append(" | sucs: ");
-            for (int i = 0; i < accionesValidas.size(); i++) {
-                Estado s = sucesoresValidos.get(i);
-                sb.append(accionesValidas.get(i).toString().replace("ACTION_", ""))
-                  .append("→(").append(s.x).append(",").append(s.y).append(")")
-                  .append(" f=").append(String.format("%.0f", costesF.get(i)));
-                if (i == mejorIdx) sb.append("*");
-                sb.append("  ");
-            }
-            sb.append("| 2min=").append(String.format("%.0f", segundoMin));
-            System.out.println(sb.toString());
-        }
-
-        // Regla de aprendizaje
+        // h(actual) = max(h(actual), segundo_min)
         long keyActual = enc(actual.x, actual.y);
-        double hActual = getH(actual);
-        if (segundoMin > hActual) {
-            tablaH.put(keyActual, segundoMin);
-            if (DEBUG && actual.fase == 0) {
-                System.out.println("   UPDATE h(" + actual.x + "," + actual.y + ") "
-                    + String.format("%.0f", hActual) + " → " + String.format("%.0f", segundoMin));
-            }
-        }
+        Double hActual = tablaH.get(keyActual);
+        if (hActual == null) hActual = heuristicaBase(actual);
+        tablaH.put(keyActual, Math.max(hActual, segundoMin));
 
-        ACTIONS accionElegida = accionesValidas.get(mejorIdx);
-        Estado siguiente = sucesoresValidos.get(mejorIdx);
-
-        if (esMeta(siguiente)) {
-            nodosExp++;
-            if (DEBUG) System.out.println("META en siguiente tick " + nodosExp);
-            finalizado = true;
-            fijarMetricas(true);
-        }
-
-        actual = siguiente;
-        return accionElegida;
+        // actual = z
+        actual = sucesoresValidos.get(mejorIdx);
+        return accionesValidas.get(mejorIdx);
+        
     }
 
     // =========================================================
-    //  TABLA HEURÍSTICA — clave solo posición (x,y)
+    // TABLA HEURÍSTICA — clave estado completo
     // =========================================================
     private double getH(Estado e) {
         long k = enc(e.x, e.y);
@@ -250,17 +222,7 @@ public class AgenteRTAStar extends AbstractPlayer {
         return h;
     }
 
-    /**
-     * Heurística base: Manhattan considerando llave y portal.
-     */
     private double heuristicaBase(Estado e) {
-        if (e.fase != 0) {
-            return Math.abs(e.x - metaX) + Math.abs(e.y - metaY);
-        }
-        if (!e.llave && llaveX >= 0) {
-            return Math.abs(e.x - llaveX) + Math.abs(e.y - llaveY)
-                 + Math.abs(llaveX - metaX) + Math.abs(llaveY - metaY);
-        }
         return Math.abs(e.x - metaX) + Math.abs(e.y - metaY);
     }
 
@@ -268,6 +230,9 @@ public class AgenteRTAStar extends AbstractPlayer {
         return e.x == metaX && e.y == metaY && e.llave && e.fase == 0;
     }
 
+    // =========================================================
+    // TRANSICIÓN (igual que AgenteAStar con bitmask de llaves)
+    // =========================================================
     private Estado trans(Estado e, ACTIONS a) {
         if (e.fase == 0) {
             if (a == ACTIONS.ACTION_NIL) return null;
@@ -277,11 +242,14 @@ public class AgenteRTAStar extends AbstractPlayer {
             if (muro[nx][ny]) return null;
             if (nx == metaX && ny == metaY && !e.llave) return null;
 
-            int m = e.mon; boolean l = e.llave; int mB = e.mB, cB = e.cB;
+            int m = e.mon; boolean l = e.llave; int mB = e.mB, lB = e.lB, cB = e.cB;
             int mi = monIdx(nx, ny);
             if (mi >= 0 && (mB & (1 << mi)) != 0 && m < 5) { m++; mB &= ~(1 << mi); }
-            if (nx == llaveX && ny == llaveY && !l) l = true;
-
+            int li = llaveIdx(nx, ny);
+            if (li >= 0 && (lB & (1 << li)) != 0) {
+                lB &= ~(1 << li);
+                if (!l) l = true;
+            }
             long pk = enc(nx, ny);
             Integer ci = catIdx.get(pk);
             if (ci != null && (cB & (1 << ci)) != 0) {
@@ -289,13 +257,13 @@ public class AgenteRTAStar extends AbstractPlayer {
                 if (!catapultasGratis) m--;
                 int[] dir = catDir.get(pk);
                 cB &= ~(1 << ci);
-                return new Estado(nx, ny, m, l, mB, cB, 1, dir[0], dir[1]);
+                return new Estado(nx, ny, m, l, mB, lB, cB, 1, dir[0], dir[1]);
             }
-            return new Estado(nx, ny, m, l, mB, cB, 0, 0, 0);
+            return new Estado(nx, ny, m, l, mB, lB, cB, 0, 0, 0);
 
         } else if (e.fase == 1) {
             if (a != ACTIONS.ACTION_NIL) return null;
-            return new Estado(e.x, e.y, e.mon, e.llave, e.mB, e.cB, 2, e.vdx, e.vdy);
+            return new Estado(e.x, e.y, e.mon, e.llave, e.mB, e.lB, e.cB, 2, e.vdx, e.vdy);
 
         } else if (e.fase == 2) {
             if (a != ACTIONS.ACTION_NIL) return null;
@@ -303,30 +271,33 @@ public class AgenteRTAStar extends AbstractPlayer {
             boolean col = (tx < 0 || tx >= gridW || ty < 0 || ty >= gridH);
             if (!col) col = (muro[tx][ty] && !agua[tx][ty]);
             if (!col && tx == metaX && ty == metaY && !e.llave) col = true;
-
             if (col) {
                 if (agua[e.x][e.y]) return null;
-                return new Estado(e.x, e.y, e.mon, e.llave, e.mB, e.cB, 0, 0, 0);
+                return new Estado(e.x, e.y, e.mon, e.llave, e.mB, e.lB, e.cB, 0, 0, 0);
             }
-
             int nx = tx, ny = ty;
-            int m = e.mon; boolean l = e.llave; int mB = e.mB, cB = e.cB;
+            int m = e.mon; boolean l = e.llave; int mB = e.mB, lB = e.lB, cB = e.cB;
             int mi = monIdx(nx, ny);
             if (mi >= 0 && (mB & (1 << mi)) != 0 && m < 5) { m++; mB &= ~(1 << mi); }
-            if (nx == llaveX && ny == llaveY && !l) l = true;
-
+            int li = llaveIdx(nx, ny);
+            if (li >= 0 && (lB & (1 << li)) != 0) {
+                lB &= ~(1 << li);
+                if (!l) l = true;
+            }
+            if (nx == metaX && ny == metaY && l)
+                return new Estado(nx, ny, m, l, mB, lB, cB, 0, 0, 0);
             long pk = enc(nx, ny);
             Integer ci = catIdx.get(pk);
             if (ci != null && (cB & (1 << ci)) != 0) {
                 int[] dir = catDir.get(pk);
                 cB &= ~(1 << ci);
-                return new Estado(nx, ny, m, l, mB, cB, 3, dir[0], dir[1]);
+                return new Estado(nx, ny, m, l, mB, lB, cB, 3, dir[0], dir[1]);
             }
-            return new Estado(nx, ny, m, l, mB, cB, 2, e.vdx, e.vdy);
+            return new Estado(nx, ny, m, l, mB, lB, cB, 2, e.vdx, e.vdy);
 
         } else if (e.fase == 3) {
             if (a != ACTIONS.ACTION_NIL) return null;
-            return new Estado(e.x, e.y, e.mon, e.llave, e.mB, e.cB, 2, e.vdx, e.vdy);
+            return new Estado(e.x, e.y, e.mon, e.llave, e.mB, e.lB, e.cB, 2, e.vdx, e.vdy);
         }
         return null;
     }
@@ -336,6 +307,7 @@ public class AgenteRTAStar extends AbstractPlayer {
         mp.setNumAccionesPlan(victoria ? nodosExp : -1);
         mp.setNodosExpandidos(nodosExp);
         mp.printMetrics();
+        System.out.println("DEBUG nodosExp=" + nodosExp + " victoria=" + victoria);
     }
 
     private int gx(Vector2d p) { return (int)(p.x / blockSize); }
@@ -358,13 +330,22 @@ public class AgenteRTAStar extends AbstractPlayer {
         return -1;
     }
 
+    private int llaveIdx(int x, int y) {
+        long k = enc(x, y);
+        for (int i = 0; i < numLlaves; i++) if (llavePos[i] == k) return i;
+        return -1;
+    }
+
+    // =========================================================
+    // ESTADO
+    // =========================================================
     private static class Estado {
-        int x, y, mon, mB, cB, fase, vdx, vdy;
+        int x, y, mon, mB, lB, cB, fase, vdx, vdy;
         boolean llave;
 
-        Estado(int x, int y, int m, boolean l, int mB, int cB, int f, int vx, int vy) {
+        Estado(int x, int y, int m, boolean l, int mB, int lB, int cB, int f, int vx, int vy) {
             this.x = x; this.y = y; mon = m; llave = l;
-            this.mB = mB; this.cB = cB; fase = f; vdx = vx; vdy = vy;
+            this.mB = mB; this.lB = lB; this.cB = cB; fase = f; vdx = vx; vdy = vy;
         }
     }
 }
