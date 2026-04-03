@@ -119,19 +119,7 @@ public class AgenteProfundidad extends AbstractPlayer {
         for (int i = 0; i < numMon; i++) monPos[i] = ml.get(i);
         catapultasGratis = (numMon == 0);
 
-        System.out.println("Monedas:");
-        for (int i = 0; i < numMon; i++) {
-            int mx = (int)(monPos[i] % gridW);
-            int my = (int)(monPos[i] / gridW);
-            System.out.println("  idx=" + i + " pos=(" + mx + "," + my + ")");
-        }
-        System.out.println("Catapultas (idx orden):");
-        for (Map.Entry<Long, Integer> e : catIdx.entrySet()) {
-            long pk = e.getKey();
-            int cx = (int)(pk % gridW), cy = (int)(pk / gridW);
-            int[] d = catDir.get(pk);
-            System.out.println("  idx=" + e.getValue() + " pos=(" + cx + "," + cy + ") dir=(" + d[0] + "," + d[1] + ")");
-        }
+        
     }
 
     // =========================================================
@@ -198,12 +186,6 @@ public class AgenteProfundidad extends AbstractPlayer {
             }
             while (!p.isEmpty()) r.add(p.pop());
         }
-
-        System.out.println("=== PLAN ===");
-        for (int i = 0; i < r.size(); i++) {
-            System.out.println(r.get(i));
-        }
-        System.out.println("Total acciones: " + r.size());
 
         MetricsProvider mp = MetricsProvider.getInstance();
         mp.setNodosExpandidos(nodosExp);
