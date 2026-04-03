@@ -114,7 +114,12 @@ public class AgenteAStar extends AbstractPlayer {
             for (ArrayList<Observation> lista : rec) {
                 for (Observation obs : lista) {
                     if (obs.itype == 15) ml.add(enc(gx(obs.position), gy(obs.position)));
-                    else if (obs.itype == 16) { kl.add(enc(gx(obs.position), gy(obs.position))); }
+                    else if (obs.itype == 16) { 
+                        int kx = gx(obs.position), ky = gy(obs.position);
+                        if (kx != iniX || ky != iniY) {  // excluir avatar
+                            kl.add(enc(kx, ky));
+                        }
+                    }
                 }
             }
         }
@@ -125,9 +130,6 @@ public class AgenteAStar extends AbstractPlayer {
         llavePos = new long[numLlaves];
         for (int i = 0; i < numLlaves; i++) llavePos[i] = kl.get(i);
         catapultasGratis = (numMon == 0);
-
-        System.out.println("Numero de monedas: " + numMon);
-        System.out.println("Numero de llaves: " + numLlaves);
     }
 
     // =========================================================
@@ -187,9 +189,6 @@ public class AgenteAStar extends AbstractPlayer {
             if (esMeta(ac.e)) { meta = ac; break; }
 
             nodosExp++;
-            
-
-            
 
             ce.put(ka, ac);
 
@@ -207,32 +206,17 @@ public class AgenteAStar extends AbstractPlayer {
                 int gN = ac.g + 1;
                 double hN = heuristica(h);
                 String kS = h.key();
+                añadirSucesor(h, kS, gN, hN, ac, a, ab, abM, ce, ord++);
 
-                Nodo eC = ce.get(kS);
-                if (eC != null) {
-                    // En cerrados: ¿mejor camino?
-                    if (gN < eC.g) {
-                        ce.remove(kS);
-                        Nodo ns = new Nodo(h, ac, a, gN, hN, ac.pr + 1, ord++);
-                        ab.add(ns);
-                        abM.put(kS, ns);
-                    }
-                    continue;
+                // Si tenía llave y pisó otra → sucesor alternativo sin recogerla
+                /* 
+                if (ac.e.fase == 0 && ac.e.llave && h.lB != ac.e.lB) {
+                    Estado alt = new Estado(h.x, h.y, h.mon, h.llave, h.mB, ac.e.lB, h.cB, h.fase, h.vdx, h.vdy);
+                    String kA = alt.key();
+                    double hA = heuristica(alt);
+                    añadirSucesor(alt, kA, gN, hA, ac, a, ab, abM, ce, ord++);
                 }
-
-                Nodo eA = abM.get(kS);
-                if (eA == null) {
-                    // No en abiertos ni cerrados: añadir
-                    Nodo ns = new Nodo(h, ac, a, gN, hN, ac.pr + 1, ord++);
-                    ab.add(ns);
-                    abM.put(kS, ns);
-                } else if (gN < eA.g) {
-                    // En abiertos con peor g: actualizar
-                    eA.obs = true;  // marcar antiguo como obsoleto
-                    Nodo ns = new Nodo(h, ac, a, gN, hN, ac.pr + 1, ord++);
-                    ab.add(ns);
-                    abM.put(kS, ns);
-                }
+                */
             }
         }
 
@@ -287,7 +271,10 @@ public class AgenteAStar extends AbstractPlayer {
             if (mi >= 0 && (mB & (1 << mi)) != 0 && m < 5) { m++; mB &= ~(1 << mi); }
             // if (nx == llaveX && ny == llaveY && !l) l = true;
             int li = llaveIdx(nx, ny);
-            if (li >= 0 && (lB & (1 << li)) != 0 && !l) { lB &= ~(1 << li); l = true; }
+            if (li >= 0 && (lB & (1 << li)) != 0) {
+                lB &= ~(1 << li);  // siempre marca como recogida
+                if (!l) l = true;  // solo activa llave si no la tenía
+            }
 
             long pk = enc(nx, ny);
             Integer ci = catIdx.get(pk);
@@ -322,7 +309,10 @@ public class AgenteAStar extends AbstractPlayer {
             if (mi >= 0 && (mB & (1 << mi)) != 0 && m < 5) { m++; mB &= ~(1 << mi); }
             // if (nx == llaveX && ny == llaveY && !l) l = true;
             int li = llaveIdx(nx, ny);
-            if (li >= 0 && (lB & (1 << li)) != 0 && !l) { lB &= ~(1 << li); l = true; }
+            if (li >= 0 && (lB & (1 << li)) != 0) {
+                lB &= ~(1 << li);  // siempre marca como recogida
+                if (!l) l = true;  // solo activa llave si no la tenía
+            }
 
             if (nx == metaX && ny == metaY && l) {
                 return new Estado(nx, ny, m, l, mB, lB, cB, 0, 0, 0);
@@ -373,6 +363,29 @@ public class AgenteAStar extends AbstractPlayer {
         return -1;
     }
 
+    private void añadirSucesor(Estado h, String kS, int gN, double hN,
+        Nodo ac, ACTIONS a,
+        PriorityQueue<Nodo> ab, HashMap<String,Nodo> abM,
+        HashMap<String,Nodo> ce, int ord) {
+        Nodo eC = ce.get(kS);
+        if (eC != null) {
+            if (gN < eC.g) {
+                ce.remove(kS);
+                Nodo ns = new Nodo(h, ac, a, gN, hN, ac.pr + 1, ord);
+                ab.add(ns); abM.put(kS, ns);
+            }
+            return;
+        }
+        Nodo eA = abM.get(kS);
+        if (eA == null) {
+            Nodo ns = new Nodo(h, ac, a, gN, hN, ac.pr + 1, ord);
+            ab.add(ns); abM.put(kS, ns);
+        } else if (gN < eA.g) {
+            eA.obs = true;
+            Nodo ns = new Nodo(h, ac, a, gN, hN, ac.pr + 1, ord);
+            ab.add(ns); abM.put(kS, ns);
+        }
+    }
 
     // =========================================================
     //  CLASES INTERNAS
@@ -388,7 +401,7 @@ public class AgenteAStar extends AbstractPlayer {
 
         String key() {
             return x + "," + y + "," + mon + "," + (llave ? 1 : 0) + ","
-                 + cB + "," + fase + "," + vdx + "," + vdy;
+                + mB + "," + lB + "," + cB + "," + fase + "," + vdx + "," + vdy;
         }
     }
 
