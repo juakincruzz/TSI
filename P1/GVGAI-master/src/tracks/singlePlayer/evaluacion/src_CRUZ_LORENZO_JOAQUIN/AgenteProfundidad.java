@@ -92,6 +92,7 @@ public class AgenteProfundidad extends AbstractPlayer {
                 }
             }
         }
+
         int ci = 0;
         for (long[] cl : catList) catIdx.put(cl[0], ci++);
         numCats = ci;
@@ -112,13 +113,19 @@ public class AgenteProfundidad extends AbstractPlayer {
         for (int i = 0; i < numMon; i++) monPos[i] = ml.get(i);
         catapultasGratis = (numMon == 0);
 
-        System.out.println("Itypes encontrados:");
-        HashSet<Integer> allIt = new HashSet<>();
-        if (inmov != null) {
-            for (ArrayList<Observation> lista : inmov)
-                for (Observation obs : lista) allIt.add(obs.itype);
+        System.out.println("Monedas:");
+        for (int i = 0; i < numMon; i++) {
+            int mx = (int)(monPos[i] % gridW);
+            int my = (int)(monPos[i] / gridW);
+            System.out.println("  idx=" + i + " pos=(" + mx + "," + my + ")");
         }
-        System.out.println("  " + allIt);
+        System.out.println("Catapultas (idx orden):");
+        for (Map.Entry<Long, Integer> e : catIdx.entrySet()) {
+            long pk = e.getKey();
+            int cx = (int)(pk % gridW), cy = (int)(pk / gridW);
+            int[] d = catDir.get(pk);
+            System.out.println("  idx=" + e.getValue() + " pos=(" + cx + "," + cy + ") dir=(" + d[0] + "," + d[1] + ")");
+        }
     }
 
     // =========================================================
@@ -183,13 +190,18 @@ public class AgenteProfundidad extends AbstractPlayer {
             while (!p.isEmpty()) r.add(p.pop());
         }
 
+        System.out.println("=== PLAN ===");
+        for (int i = 0; i < r.size(); i++) {
+            System.out.println(r.get(i));
+        }
+        System.out.println("Total acciones: " + r.size());
+
         MetricsProvider mp = MetricsProvider.getInstance();
         mp.setNodosExpandidos(nodosExp);
         mp.setProfundidadMaxima(profMax);
         mp.setNumAccionesPlan(metaKey != null ? r.size() : -1);
         mp.printMetrics();
         return r;
-        
     }
 
     private boolean dfsSearch(Estado u) {
@@ -203,7 +215,7 @@ public class AgenteProfundidad extends AbstractPlayer {
         // Comprobar meta (u es nodo expandido)
         if (esMeta(u)) {
             metaKey = uk;
-            nodosExp++; // el nodo meta se cuenta como expandido
+            // nodosExp++; // el nodo meta se cuenta como expandido
             return true;
         }
         nodosExp++;
@@ -296,6 +308,11 @@ public class AgenteProfundidad extends AbstractPlayer {
             int mi = monIdx(nx, ny);
             if (mi >= 0 && (mB & (1 << mi)) != 0 && m < 5) { m++; mB &= ~(1 << mi); }
             if (nx == llaveX && ny == llaveY && !l) l = true;
+
+            // Si aterrizamos en el portal con llave, detenemos el vuelo
+            if (nx == metaX && ny == metaY && l) {
+                return new Estado(nx, ny, m, l, mB, cB, 0, 0, 0);
+            }
 
             long pk = enc(nx, ny);
             Integer ci = catIdx.get(pk);
