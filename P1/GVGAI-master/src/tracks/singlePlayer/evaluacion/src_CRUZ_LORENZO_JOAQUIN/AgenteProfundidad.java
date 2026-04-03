@@ -21,7 +21,9 @@ public class AgenteProfundidad extends AbstractPlayer {
 
     private long[] monPos;
     private int numMon;
-    private int llaveX = -1, llaveY = -1;
+    // private int llaveX = -1, llaveY = -1;
+    private long[] llavePos;
+    private int numLlaves;
     private boolean catapultasGratis;
 
     private ArrayList<ACTIONS> plan = null;
@@ -100,14 +102,18 @@ public class AgenteProfundidad extends AbstractPlayer {
         // Monedas y llave
         ArrayList<Long> ml = new ArrayList<>();
         ArrayList<Observation>[] rec = so.getResourcesPositions();
+        ArrayList<Long> kl = new ArrayList<>();
         if (rec != null) {
             for (ArrayList<Observation> lista : rec) {
                 for (Observation obs : lista) {
                     if (obs.itype == 15) ml.add(enc(gx(obs.position), gy(obs.position)));
-                    else if (obs.itype == 16) { llaveX = gx(obs.position); llaveY = gy(obs.position); }
+                    else if (obs.itype == 16) { kl.add(enc(gx(obs.position), gy(obs.position))); }
                 }
             }
         }
+        numLlaves = kl.size();
+        llavePos = new long[numLlaves];
+        for (int i = 0; i < numLlaves; i++) llavePos[i] = kl.get(i);
         numMon = ml.size();
         monPos = new long[numMon];
         for (int i = 0; i < numMon; i++) monPos[i] = ml.get(i);
@@ -168,9 +174,12 @@ public class AgenteProfundidad extends AbstractPlayer {
         padreAccion = new HashMap<>();
         metaKey = null;
 
-        boolean tieneLlaveInicial = (llaveX == -1);
-        Estado e0 = new Estado(iniX, iniY, 0, tieneLlaveInicial,
-                (1 << numMon) - 1, (1 << numCats) - 1, 0, 0, 0);
+        // boolean tieneLlaveInicial = (llaveX == -1);
+        Estado e0 = new Estado(iniX, iniY, 0, false,
+                (1 << numMon) - 1, 
+                (1 << numLlaves) - 1, 
+                (1 << numCats) - 1, 
+                0, 0, 0);
 
         String k0 = e0.key();
         visitados.add(k0);
@@ -260,18 +269,30 @@ public class AgenteProfundidad extends AbstractPlayer {
 
     private Estado trans(Estado e, ACTIONS a) {
         if (e.fase == 0) {
+            int m = e.mon; 
+            boolean l = e.llave; 
+            int mB = e.mB, cB = e.cB, lB = e.lB;
+
             if (a == ACTIONS.ACTION_NIL) return null;
             int[] d = delta(a);
             int nx = e.x + d[0], ny = e.y + d[1];
             if (nx < 0 || nx >= gridW || ny < 0 || ny >= gridH) return null;
             if (muro[nx][ny]) return null;
-            if (nx == metaX && ny == metaY && !e.llave) return null;
-
-            int m = e.mon; boolean l = e.llave; int mB = e.mB, cB = e.cB;
+            //if (nx == metaX && ny == metaY && !e.llave) return null;
+            int li = llaveIdx(nx, ny);
+            if (li >= 0 && (lB & (1 << li)) != 0 && !l) { lB &= ~(1 << li); l = true; }
+            
+            
 
             int mi = monIdx(nx, ny);
             if (mi >= 0 && (mB & (1 << mi)) != 0 && m < 5) { m++; mB &= ~(1 << mi); }
-            if (nx == llaveX && ny == llaveY && !l) l = true;
+            // if (nx == llaveX && ny == llaveY && !l) l = true;
+
+            int llaveIdx = llaveIdx(nx, ny);
+            if (llaveIdx >= 0 && (lB & (1 << llaveIdx)) != 0) {
+                lB &= ~(1 << llaveIdx); // marcar como recogida
+                l = true;               // ahora el avatar tiene llave
+            }
 
             long pk = enc(nx, ny);
             Integer ci = catIdx.get(pk);
@@ -280,16 +301,20 @@ public class AgenteProfundidad extends AbstractPlayer {
                 if (!catapultasGratis) m--;
                 int[] dir = catDir.get(pk);
                 cB &= ~(1 << ci);
-                return new Estado(nx, ny, m, l, mB, cB, 1, dir[0], dir[1]);
+                return new Estado(nx, ny, m, l, mB, lB, cB, 1, dir[0], dir[1]);
             }
 
-            return new Estado(nx, ny, m, l, mB, cB, 0, 0, 0);
+            return new Estado(nx, ny, m, l, mB, lB, cB, 0, 0, 0);
 
         } else if (e.fase == 1) {
             if (a != ACTIONS.ACTION_NIL) return null;
-            return new Estado(e.x, e.y, e.mon, e.llave, e.mB, e.cB, 2, e.vdx, e.vdy);
+            return new Estado(e.x, e.y, e.mon, e.llave, e.mB, e.lB, e.cB, 2, e.vdx, e.vdy);
 
         } else if (e.fase == 2) {
+            int m = e.mon; 
+            boolean l = e.llave; 
+            int mB = e.mB, cB = e.cB, lB = e.lB;
+
             if (a != ACTIONS.ACTION_NIL) return null;
             int tx = e.x + e.vdx, ty = e.y + e.vdy;
 
@@ -299,19 +324,19 @@ public class AgenteProfundidad extends AbstractPlayer {
 
             if (col) {
                 if (agua[e.x][e.y]) return null;
-                return new Estado(e.x, e.y, e.mon, e.llave, e.mB, e.cB, 0, 0, 0);
+                return new Estado(e.x, e.y, e.mon, e.llave, e.mB, e.lB, e.cB, 0, 0, 0);
             }
 
             int nx = tx, ny = ty;
-            int m = e.mon; boolean l = e.llave; int mB = e.mB, cB = e.cB;
-
             int mi = monIdx(nx, ny);
             if (mi >= 0 && (mB & (1 << mi)) != 0 && m < 5) { m++; mB &= ~(1 << mi); }
-            if (nx == llaveX && ny == llaveY && !l) l = true;
+            //if (nx == llaveX && ny == llaveY && !l) l = true;
+            int li = llaveIdx(nx, ny);
+            if (li >= 0 && (lB & (1 << li)) != 0 && !l) { lB &= ~(1 << li); l = true; }
 
             // Si aterrizamos en el portal con llave, detenemos el vuelo
             if (nx == metaX && ny == metaY && l) {
-                return new Estado(nx, ny, m, l, mB, cB, 0, 0, 0);
+                return new Estado(nx, ny, m, l, mB, lB, cB, 0, 0, 0);
             }
 
             long pk = enc(nx, ny);
@@ -319,14 +344,14 @@ public class AgenteProfundidad extends AbstractPlayer {
             if (ci != null && (cB & (1 << ci)) != 0) {
                 int[] dir = catDir.get(pk);
                 cB &= ~(1 << ci);
-                return new Estado(nx, ny, m, l, mB, cB, 3, dir[0], dir[1]);
+                return new Estado(nx, ny, m, l, mB, lB, cB, 3, dir[0], dir[1]);
             }
 
-            return new Estado(nx, ny, m, l, mB, cB, 2, e.vdx, e.vdy);
+            return new Estado(nx, ny, m, l, mB, lB, cB, 2, e.vdx, e.vdy);
 
         } else if (e.fase == 3) {
             if (a != ACTIONS.ACTION_NIL) return null;
-            return new Estado(e.x, e.y, e.mon, e.llave, e.mB, e.cB, 2, e.vdx, e.vdy);
+            return new Estado(e.x, e.y, e.mon, e.llave, e.mB, e.lB, e.cB, 2, e.vdx, e.vdy);
         }
         return null;
     }
@@ -354,21 +379,28 @@ public class AgenteProfundidad extends AbstractPlayer {
         return -1;
     }
 
+    private int llaveIdx(int x, int y) {
+        long k = enc(x, y);
+        for (int i = 0; i < numLlaves; i++) if (llavePos[i] == k) return i;
+        return -1;
+    }
+
+
     // =========================================================
     //  CLASES INTERNAS
     // =========================================================
     private static class Estado {
-        int x, y, mon, mB, cB, fase, vdx, vdy;
+        int x, y, mon, mB, lB, cB, fase, vdx, vdy;
         boolean llave;
 
-        Estado(int x, int y, int m, boolean l, int mB, int cB, int f, int vx, int vy) {
+        Estado(int x, int y, int m, boolean l, int mB, int lB, int cB, int f, int vx, int vy) {
             this.x = x; this.y = y; mon = m; llave = l;
-            this.mB = mB; this.cB = cB; fase = f; vdx = vx; vdy = vy;
+            this.mB = mB; this.lB = lB; this.cB = cB; fase = f; vdx = vx; vdy = vy;
         }
 
         String key() {
             return x + "," + y + "," + mon + "," + (llave ? 1 : 0) + ","
-                 + mB + "," + cB + "," + fase + "," + vdx + "," + vdy;
+                 + mB + "," + lB + "," + cB + "," + fase + "," + vdx + "," + vdy;
         }
     }
 }
