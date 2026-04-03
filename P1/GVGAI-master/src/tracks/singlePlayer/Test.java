@@ -26,8 +26,8 @@ public class Test {
 		String sampleOLETSController = "tracks.singlePlayer.advanced.olets.Agent";
 
 		// Mi agente de Depth First Search
-		String miAgenteDFS = "tracks.singlePlayer.evaluacion.src_CRUZ_LORENZO_JOAQUIN.AgenteProfundidad"; // <- El nombre de mi agente, con el paquete incluido
-		//String miAgenteDFS = "tracks.singlePlayer.evaluacion.src_CRUZ_LORENZO_JOAQUIN.AgenteAStar"; // <- El nombre de mi agente, con el paquete incluido
+		//String miAgenteDFS = "tracks.singlePlayer.evaluacion.src_CRUZ_LORENZO_JOAQUIN.AgenteProfundidad"; // <- El nombre de mi agente, con el paquete incluido
+		String miAgenteDFS = "tracks.singlePlayer.evaluacion.src_CRUZ_LORENZO_JOAQUIN.AgenteAStar"; // <- El nombre de mi agente, con el paquete incluido
 		//String miAgenteDFS = "tracks.singlePlayer.evaluacion.src_CRUZ_LORENZO_JOAQUIN.AgenteRTAStar"; // <- El nombre de mi agente, con el paquete incluido
 		//String miAgenteDFS = "tracks.singlePlayer.evaluacion.src_CRUZ_LORENZO_JOAQUIN.AgenteLRTAStarK"; // <- El nombre de mi agente, con el paquete incluido
 
@@ -45,7 +45,7 @@ public class Test {
 
 		// Game and level to play
 		int gameIdx = 122;
-		int levelIdx = 6; // level names from 0 to 4 (game_lvlN.txt).
+		int levelIdx = 1; // level names from 0 to 4 (game_lvlN.txt).
 		String gameName = games[gameIdx][1];
 		String game = games[gameIdx][0];
 		String level1 = game.replace(gameName, gameName + "_lvl" + levelIdx);

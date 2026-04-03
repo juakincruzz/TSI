@@ -30,7 +30,9 @@ public class AgenteAStar extends AbstractPlayer {
 
     private long[] monPos;
     private int numMon;
-    private int llaveX = -1, llaveY = -1;
+    // private int llaveX = -1, llaveY = -1;
+    private long[] llavePos;
+    private int numLlaves;
     private boolean catapultasGratis;
 
     private ArrayList<ACTIONS> plan = null;
@@ -107,17 +109,21 @@ public class AgenteAStar extends AbstractPlayer {
         // Monedas y llave
         ArrayList<Long> ml = new ArrayList<>();
         ArrayList<Observation>[] rec = so.getResourcesPositions();
+        ArrayList<Long> kl = new ArrayList<>();
         if (rec != null) {
             for (ArrayList<Observation> lista : rec) {
                 for (Observation obs : lista) {
                     if (obs.itype == 15) ml.add(enc(gx(obs.position), gy(obs.position)));
-                    else if (obs.itype == 16) { llaveX = gx(obs.position); llaveY = gy(obs.position); }
+                    else if (obs.itype == 16) { kl.add(enc(gx(obs.position), gy(obs.position))); }
                 }
             }
         }
         numMon = ml.size();
         monPos = new long[numMon];
         for (int i = 0; i < numMon; i++) monPos[i] = ml.get(i);
+        numLlaves = kl.size();
+        llavePos = new long[numLlaves];
+        for (int i = 0; i < numLlaves; i++) llavePos[i] = kl.get(i);
         catapultasGratis = (numMon == 0);
     }
 
@@ -154,9 +160,12 @@ public class AgenteAStar extends AbstractPlayer {
         HashMap<String, Nodo> ce = new HashMap<>();     // cerrados por key
         int ord = 0;
 
-        boolean tieneLlaveInicial = (llaveX == -1);
-        Estado e0 = new Estado(iniX, iniY, 0, tieneLlaveInicial,
-            (1 << numMon) - 1, (1 << numCats) - 1, 0, 0, 0);
+        // boolean tieneLlaveInicial = (llaveX == -1);
+        Estado e0 = new Estado(iniX, iniY, 0, false,
+            (1 << numMon) - 1, 
+            (1 << numLlaves) - 1,
+            (1 << numCats) - 1, 
+            0, 0, 0);
         Nodo n0 = new Nodo(e0, null, ACTIONS.ACTION_NIL, 0, heuristica(e0), 0, ord++);
         ab.add(n0);
         abM.put(e0.key(), n0);
@@ -169,11 +178,15 @@ public class AgenteAStar extends AbstractPlayer {
             if (abM.get(ka) != ac) continue;  // ya no es el vigente
             abM.remove(ka);
 
-            nodosExp++;
             if (ac.pr > profMax) profMax = ac.pr;
 
             // ¿Es meta?
             if (esMeta(ac.e)) { meta = ac; break; }
+
+            nodosExp++;
+            
+
+            
 
             ce.put(ka, ac);
 
@@ -242,18 +255,11 @@ public class AgenteAStar extends AbstractPlayer {
     //  HEURÍSTICA: Manhattan considerando llave
     // =========================================================
     private double heuristica(Estado e) {
-        if (e.fase != 0) {
-            // En vuelo: Manhattan desde posición actual al portal
-            return Math.abs(e.x - metaX) + Math.abs(e.y - metaY);
-        }
-        if (!e.llave && llaveX >= 0) {
-            // Necesita llave: Manhattan a llave + Manhattan de llave a portal
-            return Math.abs(e.x - llaveX) + Math.abs(e.y - llaveY)
-                 + Math.abs(llaveX - metaX) + Math.abs(llaveY - metaY);
-        }
-        // Tiene llave o no hay llave: Manhattan al portal
         return Math.abs(e.x - metaX) + Math.abs(e.y - metaY);
     }
+
+
+
 
     // =========================================================
     //  META Y TRANSICIÓN
@@ -271,10 +277,12 @@ public class AgenteAStar extends AbstractPlayer {
             if (muro[nx][ny]) return null;
             if (nx == metaX && ny == metaY && !e.llave) return null;
 
-            int m = e.mon; boolean l = e.llave; int mB = e.mB, cB = e.cB;
+            int m = e.mon; boolean l = e.llave; int mB = e.mB, lB = e.lB, cB = e.cB;
             int mi = monIdx(nx, ny);
             if (mi >= 0 && (mB & (1 << mi)) != 0 && m < 5) { m++; mB &= ~(1 << mi); }
-            if (nx == llaveX && ny == llaveY && !l) l = true;
+            // if (nx == llaveX && ny == llaveY && !l) l = true;
+            int li = llaveIdx(nx, ny);
+            if (li >= 0 && (lB & (1 << li)) != 0 && !l) { lB &= ~(1 << li); l = true; }
 
             long pk = enc(nx, ny);
             Integer ci = catIdx.get(pk);
@@ -283,13 +291,13 @@ public class AgenteAStar extends AbstractPlayer {
                 if (!catapultasGratis) m--;
                 int[] dir = catDir.get(pk);
                 cB &= ~(1 << ci);
-                return new Estado(nx, ny, m, l, mB, cB, 1, dir[0], dir[1]);
+                return new Estado(nx, ny, m, l, mB, lB, cB, 1, dir[0], dir[1]);
             }
-            return new Estado(nx, ny, m, l, mB, cB, 0, 0, 0);
+            return new Estado(nx, ny, m, l, mB, lB, cB, 0, 0, 0);
 
         } else if (e.fase == 1) {
             if (a != ACTIONS.ACTION_NIL) return null;
-            return new Estado(e.x, e.y, e.mon, e.llave, e.mB, e.cB, 2, e.vdx, e.vdy);
+            return new Estado(e.x, e.y, e.mon, e.llave, e.mB, e.lB, e.cB, 2, e.vdx, e.vdy);
 
         } else if (e.fase == 2) {
             if (a != ACTIONS.ACTION_NIL) return null;
@@ -300,27 +308,33 @@ public class AgenteAStar extends AbstractPlayer {
 
             if (col) {
                 if (agua[e.x][e.y]) return null;
-                return new Estado(e.x, e.y, e.mon, e.llave, e.mB, e.cB, 0, 0, 0);
+                return new Estado(e.x, e.y, e.mon, e.llave, e.mB, e.lB, e.cB, 0, 0, 0);
             }
 
             int nx = tx, ny = ty;
-            int m = e.mon; boolean l = e.llave; int mB = e.mB, cB = e.cB;
+            int m = e.mon; boolean l = e.llave; int mB = e.mB, lB = e.lB, cB = e.cB;
             int mi = monIdx(nx, ny);
             if (mi >= 0 && (mB & (1 << mi)) != 0 && m < 5) { m++; mB &= ~(1 << mi); }
-            if (nx == llaveX && ny == llaveY && !l) l = true;
+            // if (nx == llaveX && ny == llaveY && !l) l = true;
+            int li = llaveIdx(nx, ny);
+            if (li >= 0 && (lB & (1 << li)) != 0 && !l) { lB &= ~(1 << li); l = true; }
+
+            if (nx == metaX && ny == metaY && l) {
+                return new Estado(nx, ny, m, l, mB, lB, cB, 0, 0, 0);
+            }
 
             long pk = enc(nx, ny);
             Integer ci = catIdx.get(pk);
             if (ci != null && (cB & (1 << ci)) != 0) {
                 int[] dir = catDir.get(pk);
                 cB &= ~(1 << ci);
-                return new Estado(nx, ny, m, l, mB, cB, 3, dir[0], dir[1]);
+                return new Estado(nx, ny, m, l, mB, lB, cB, 3, dir[0], dir[1]);
             }
-            return new Estado(nx, ny, m, l, mB, cB, 2, e.vdx, e.vdy);
+            return new Estado(nx, ny, m, l, mB, lB, cB, 2, e.vdx, e.vdy);
 
         } else if (e.fase == 3) {
             if (a != ACTIONS.ACTION_NIL) return null;
-            return new Estado(e.x, e.y, e.mon, e.llave, e.mB, e.cB, 2, e.vdx, e.vdy);
+            return new Estado(e.x, e.y, e.mon, e.llave, e.mB, e.lB, e.cB, 2, e.vdx, e.vdy);
         }
         return null;
     }
@@ -348,21 +362,28 @@ public class AgenteAStar extends AbstractPlayer {
         return -1;
     }
 
+    private int llaveIdx(int x, int y) {
+        long k = enc(x, y);
+        for (int i = 0; i < numLlaves; i++) if (llavePos[i] == k) return i;
+        return -1;
+    }
+
+
     // =========================================================
     //  CLASES INTERNAS
     // =========================================================
     private static class Estado {
-        int x, y, mon, mB, cB, fase, vdx, vdy;
+        int x, y, mon, mB, lB, cB, fase, vdx, vdy;
         boolean llave;
 
-        Estado(int x, int y, int m, boolean l, int mB, int cB, int f, int vx, int vy) {
+        Estado(int x, int y, int m, boolean l, int mB, int lB, int cB, int f, int vx, int vy) {
             this.x = x; this.y = y; mon = m; llave = l;
-            this.mB = mB; this.cB = cB; fase = f; vdx = vx; vdy = vy;
+            this.mB = mB; this.lB = lB; this.cB = cB; fase = f; vdx = vx; vdy = vy;
         }
 
         String key() {
             return x + "," + y + "," + mon + "," + (llave ? 1 : 0) + ","
-                 + mB + "," + cB + "," + fase + "," + vdx + "," + vdy;
+                 + mB + "," + lB + "," + cB + "," + fase + "," + vdx + "," + vdy;
         }
     }
 
