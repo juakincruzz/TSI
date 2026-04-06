@@ -144,7 +144,7 @@ public class AgenteRTAStar extends AbstractPlayer {
     public ACTIONS act(StateObservation so, ElapsedCpuTimer timer) {
         if (finalizado) return ACTIONS.ACTION_NIL;
 
-        if (actual.fase != 3) nodosExp++;
+        nodosExp++;
 
         // if actual == objetivo: break
         if (esMeta(actual)) {
@@ -199,13 +199,19 @@ public class AgenteRTAStar extends AbstractPlayer {
         }
 
         // h(actual) = max(h(actual), segundo_min)
-        long keyActual = enc(actual.x, actual.y);
+        long keyActual = keyEstado(actual);
         Double hActual = tablaH.get(keyActual);
         if (hActual == null) hActual = heuristicaBase(actual);
         tablaH.put(keyActual, Math.max(hActual, segundoMin));
 
         // actual = z
         actual = sucesoresValidos.get(mejorIdx);
+
+        if (esMeta(actual)) {
+            finalizado = true;
+            fijarMetricas(true);
+        }
+
         return accionesValidas.get(mejorIdx);
         
     }
@@ -214,7 +220,7 @@ public class AgenteRTAStar extends AbstractPlayer {
     // TABLA HEURÍSTICA — clave estado completo
     // =========================================================
     private double getH(Estado e) {
-        long k = enc(e.x, e.y);
+        long k = keyEstado(e);
         Double v = tablaH.get(k);
         if (v != null) return v;
         double h = heuristicaBase(e);
@@ -302,14 +308,6 @@ public class AgenteRTAStar extends AbstractPlayer {
         return null;
     }
 
-    private void fijarMetricas(boolean victoria) {
-        MetricsProvider mp = MetricsProvider.getInstance();
-        mp.setNumAccionesPlan(victoria ? nodosExp : -1);
-        mp.setNodosExpandidos(nodosExp);
-        mp.printMetrics();
-        System.out.println("DEBUG nodosExp=" + nodosExp + " victoria=" + victoria);
-    }
-
     private int gx(Vector2d p) { return (int)(p.x / blockSize); }
     private int gy(Vector2d p) { return (int)(p.y / blockSize); }
     private long enc(int x, int y) { return (long)y * gridW + x; }
@@ -330,10 +328,25 @@ public class AgenteRTAStar extends AbstractPlayer {
         return -1;
     }
 
+    private long keyEstado(Estado e) {
+        long k = enc(e.x, e.y);           // posición
+        k = k * 2 + (e.llave ? 1 : 0);   // tiene llave
+        k = k * 6 + e.mon;               // monedas (0-5)
+        k = k * 4 + e.fase;              // fase (0-3)
+        return k;
+    }
+
     private int llaveIdx(int x, int y) {
         long k = enc(x, y);
         for (int i = 0; i < numLlaves; i++) if (llavePos[i] == k) return i;
         return -1;
+    }
+
+    private void fijarMetricas(boolean victoria) {
+        MetricsProvider mp = MetricsProvider.getInstance();
+        mp.setNumAccionesPlan(victoria ? nodosExp : -1);
+        mp.setNodosExpandidos(nodosExp);
+        mp.printMetrics();
     }
 
     // =========================================================
