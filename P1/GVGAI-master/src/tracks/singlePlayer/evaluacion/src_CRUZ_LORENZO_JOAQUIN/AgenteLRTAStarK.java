@@ -49,10 +49,10 @@ public class AgenteLRTAStarK extends AbstractPlayer {
 
 
     private static final ACTIONS[] ORDEN = {
-        ACTIONS.ACTION_LEFT,
         ACTIONS.ACTION_UP,
-        ACTIONS.ACTION_RIGHT,
-        ACTIONS.ACTION_DOWN
+        ACTIONS.ACTION_LEFT,
+        ACTIONS.ACTION_DOWN,
+        ACTIONS.ACTION_RIGHT
     };
 
     public AgenteLRTAStarK(StateObservation so, ElapsedCpuTimer timer) {
