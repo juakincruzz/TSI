@@ -26,9 +26,10 @@ public class AgenteRTAStar extends AbstractPlayer {
     private boolean catapultasGratis;
 
     private Estado actual;
-    private HashMap<Long, Double> tablaH;
+    private HashMap<String, Double> tablaH;
     private int nodosExp = 0;
     private boolean finalizado = false;
+    private long t0 = -1;
 
     private static final ACTIONS[] ORDEN = {
         ACTIONS.ACTION_RIGHT, ACTIONS.ACTION_UP,
@@ -143,6 +144,7 @@ public class AgenteRTAStar extends AbstractPlayer {
     @Override
     public ACTIONS act(StateObservation so, ElapsedCpuTimer timer) {
         if (finalizado) return ACTIONS.ACTION_NIL;
+        if (t0 < 0) t0 = System.currentTimeMillis();
 
         nodosExp++;
 
@@ -199,7 +201,7 @@ public class AgenteRTAStar extends AbstractPlayer {
         }
 
         // h(actual) = max(h(actual), segundo_min)
-        long keyActual = keyEstado(actual);
+        String keyActual = keyEstado(actual);
         Double hActual = tablaH.get(keyActual);
         if (hActual == null) hActual = heuristicaBase(actual);
         tablaH.put(keyActual, Math.max(hActual, segundoMin));
@@ -220,7 +222,7 @@ public class AgenteRTAStar extends AbstractPlayer {
     // TABLA HEURÍSTICA — clave estado completo
     // =========================================================
     private double getH(Estado e) {
-        long k = keyEstado(e);
+        String k = keyEstado(e);
         Double v = tablaH.get(k);
         if (v != null) return v;
         double h = heuristicaBase(e);
@@ -328,12 +330,9 @@ public class AgenteRTAStar extends AbstractPlayer {
         return -1;
     }
 
-    private long keyEstado(Estado e) {
-        long k = enc(e.x, e.y);           // posición
-        k = k * 2 + (e.llave ? 1 : 0);   // tiene llave
-        k = k * 6 + e.mon;               // monedas (0-5)
-        k = k * 4 + e.fase;              // fase (0-3)
-        return k;
+    private String keyEstado(Estado e) {
+        return e.x + "," + e.y + "," + e.mon + "," + (e.llave ? 1 : 0) + ","
+                + e.mB + "," + e.lB + "," + e.cB + "," + e.fase + "," + e.vdx + "," + e.vdy;
     }
 
     private int llaveIdx(int x, int y) {
@@ -344,8 +343,9 @@ public class AgenteRTAStar extends AbstractPlayer {
 
     private void fijarMetricas(boolean victoria) {
         MetricsProvider mp = MetricsProvider.getInstance();
-        mp.setNumAccionesPlan(victoria ? nodosExp : -1);
+        mp.setNumAccionesPlan(nodosExp);
         mp.setNodosExpandidos(nodosExp);
+        mp.setTiempoMilisegundos(System.currentTimeMillis() - t0);
         mp.printMetrics();
     }
 

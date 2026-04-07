@@ -165,6 +165,8 @@ public class AgenteAStar extends AbstractPlayer {
         HashMap<String, Nodo> ce = new HashMap<>();     // cerrados por key
         int ord = 0;
 
+        long t0 = System.currentTimeMillis();
+
         // boolean tieneLlaveInicial = (llaveX == -1);
         Estado e0 = new Estado(iniX, iniY, 0, false,
             (1 << numMon) - 1, 
@@ -234,6 +236,7 @@ public class AgenteAStar extends AbstractPlayer {
         mp.setNodosAbiertos(abM.size());
         mp.setNodosCerrados(ce.size());
         mp.setNumAccionesPlan(meta != null ? r.size() : -1);
+        mp.setTiempoMilisegundos(System.currentTimeMillis() - t0);
         mp.printMetrics();
         return r;
 

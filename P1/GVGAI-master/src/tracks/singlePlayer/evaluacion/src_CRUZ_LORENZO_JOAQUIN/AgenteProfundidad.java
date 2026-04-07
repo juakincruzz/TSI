@@ -162,6 +162,8 @@ public class AgenteProfundidad extends AbstractPlayer {
         padreAccion = new HashMap<>();
         metaKey = null;
 
+        long t0 = System.currentTimeMillis();
+
         // boolean tieneLlaveInicial = (llaveX == -1);
         Estado e0 = new Estado(iniX, iniY, 0, false,
                 (1 << numMon) - 1, 
@@ -191,6 +193,7 @@ public class AgenteProfundidad extends AbstractPlayer {
         mp.setNodosExpandidos(nodosExp);
         mp.setProfundidadMaxima(profMax);
         mp.setNumAccionesPlan(metaKey != null ? r.size() : -1);
+        mp.setTiempoMilisegundos(System.currentTimeMillis() - t0);
         mp.printMetrics();
         return r;
     }
