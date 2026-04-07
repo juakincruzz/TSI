@@ -134,6 +134,7 @@ public class AgenteLRTAStarK extends AbstractPlayer {
     public ACTIONS act(StateObservation so, ElapsedCpuTimer timer) {
         if (haTerminado) return ACTIONS.ACTION_NIL;
 
+        numAcciones++;
         nodosExp++;
 
         // Inicializar actual en el primer tick — DEBE ir ANTES de cualquier uso
@@ -180,7 +181,8 @@ public class AgenteLRTAStarK extends AbstractPlayer {
 
         // 3. Moverse
         actual = mejorSucesor;
-        numAcciones++;
+        
+
 
         if (esMeta(actual)) {
             finalizarBusqueda();
