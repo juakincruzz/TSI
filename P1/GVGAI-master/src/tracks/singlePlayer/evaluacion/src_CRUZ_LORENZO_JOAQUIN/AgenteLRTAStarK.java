@@ -49,10 +49,10 @@ public class AgenteLRTAStarK extends AbstractPlayer {
 
 
     private static final ACTIONS[] ORDEN = {
+        ACTIONS.ACTION_RIGHT,
         ACTIONS.ACTION_UP,
         ACTIONS.ACTION_LEFT,
-        ACTIONS.ACTION_DOWN,
-        ACTIONS.ACTION_RIGHT
+        ACTIONS.ACTION_DOWN
     };
 
     public AgenteLRTAStarK(StateObservation so, ElapsedCpuTimer timer) {
@@ -136,7 +136,7 @@ public class AgenteLRTAStarK extends AbstractPlayer {
 
         nodosExp++;
 
-        // Inicializar actual en el primer tick
+        // Inicializar actual en el primer tick — DEBE ir ANTES de cualquier uso
         if (actual == null) {
             actual = new Estado(iniX, iniY, 0, false,
                 (1 << numMon) - 1,
@@ -151,10 +151,10 @@ public class AgenteLRTAStarK extends AbstractPlayer {
             return ACTIONS.ACTION_NIL;
         }
 
-        // Guardar estado actual para actualizar H después de moverse
-        Estado anterior = actual;
+        // 1. PRIMERO: Actualizar H con lookahead
+        lookaheadUpdateK(actual, K);
 
-        // Elegir mejor sucesor SIN lookahead todavía
+        // 2. DESPUÉS: Elegir mejor sucesor con H ya actualizada
         double mejorF = Double.MAX_VALUE;
         ACTIONS mejorAccion = ACTIONS.ACTION_NIL;
         Estado mejorSucesor = null;
@@ -178,14 +178,10 @@ public class AgenteLRTAStarK extends AbstractPlayer {
             return ACTIONS.ACTION_NIL;
         }
 
-        // Mover al mejor sucesor
+        // 3. Moverse
         actual = mejorSucesor;
         numAcciones++;
 
-        // DESPUÉS de moverse: actualizar H del estado anterior con lookahead(k)
-        lookaheadUpdateK(anterior, K);
-
-        // Comprobar meta tras moverse
         if (esMeta(actual)) {
             finalizarBusqueda();
         }
@@ -381,7 +377,9 @@ public class AgenteLRTAStarK extends AbstractPlayer {
             this.x=x; this.y=y; mon=m; llave=l;
             this.mB=mB; this.lB=lB; this.cB=cB; fase=f; vdx=vx; vdy=vy;
         }
-        String key() { return x+","+y+","+(llave?1:0)+","+mB+","+lB+","+cB; }
+        String key() { 
+            return x+","+y+","+(llave?1:0)+","+mB+","+lB+","+cB+","+mon+","+fase+","+vdx+","+vdy; 
+        }
     }
 
     // =========================================================
