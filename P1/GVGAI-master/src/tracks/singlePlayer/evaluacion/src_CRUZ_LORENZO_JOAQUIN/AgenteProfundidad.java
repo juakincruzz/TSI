@@ -24,6 +24,8 @@ import tracks.singlePlayer.MetricsProvider;
     * 
     * Orden de expansión: RIGHT, UP, LEFT, DOWN.
     * En fases de catapulta solo se permite ACTION_NIL.
+    * 
+    * @author Joaquín Cruz Lorenzo
 */
 public class AgenteProfundidad extends AbstractPlayer {
     // --- Dimensiones del mapa ---

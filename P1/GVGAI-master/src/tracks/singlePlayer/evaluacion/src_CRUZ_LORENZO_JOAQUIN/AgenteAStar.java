@@ -10,14 +10,20 @@ import tools.Vector2d;
 import tracks.singlePlayer.MetricsProvider;
 
 /**
- * Agente A* — Práctica 1 TSI (UGR 2025-26)
- *
- * Modelo propio de estado ligero (sin advance()/copy()).
- * Catapultas: itype 5=DOWN, 6=UP, 7=RIGHT, 8=LEFT.
- * Heurística: Manhattan considerando llave y portal.
- * Orden expansión: R, U, L, D (+ NIL para fases catapulta).
- * Desempate: menor f → menor h → orden de inserción (FIFO).
- */
+    * Agente de búsqueda A*.
+    * 
+    * El espacio de estados se divide en 4 fases para modelar el comportamiento de las catapultas:
+    * - Fase 0: Movimiento normal (R, L, U, D).
+    * - Fase 1: Agente montado en catapulta, esperando el tick de lanzamiento (ACTION_NIL).
+    * - Fase 2: Agente en vuelo, avanzando un paso por tick.
+    * - Fase 3: Agente aterriza en otra catapulta durante el vuelo.
+    * 
+    * Heurística: Distancia Manhattan al portal, pasando primero por la llave si aún no la he recogido.
+    * 
+    * Desempate en la cola de prioridad: menor f(n) = g(n) + h(n), luego menor h(n), luego orden de inserción (FIFO).
+    * 
+    * @author Joaquín Cruz Lorenzo
+*/
 public class AgenteAStar extends AbstractPlayer {
 
     private int blockSize, gridW, gridH;
@@ -30,7 +36,6 @@ public class AgenteAStar extends AbstractPlayer {
 
     private long[] monPos;
     private int numMon;
-    // private int llaveX = -1, llaveY = -1;
     private long[] llavePos;
     private int numLlaves;
     private boolean catapultasGratis;
