@@ -144,7 +144,6 @@ public class AgenteAStar extends AbstractPlayer {
 
             MetricsProvider mp = MetricsProvider.getInstance();
             mp.setNodosExpandidos(nodosExp);
-            mp.setProfundidadMaxima(profMax);
             mp.setNodosAbiertos(nodosAbiertos);
             mp.setNodosCerrados(nodosCerrados);
             mp.setNumAccionesPlan(plan.size() > 0 ? plan.size() : -1);

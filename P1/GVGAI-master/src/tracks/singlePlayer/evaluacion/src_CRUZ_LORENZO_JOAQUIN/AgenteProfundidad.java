@@ -9,22 +9,48 @@ import tools.ElapsedCpuTimer;
 import tools.Vector2d;
 import tracks.singlePlayer.MetricsProvider;
 
+
+/*
+    * Agente de búsqueda en profundidad (DFS)
+    * 
+    * Estrategia: Búsqueda offline completa antes de actuar.
+    * En el primer tick ejecuto el DFS recursivo sobre un modelo propio del
+    * estado del juego. El resultado es un plan de acciones que se ejecuta
+    * acción a acción en los ticks siguientes.
+    * 
+    * Modelo de estado: posición (x, y), monedas recogidas (bitmask), llave obtenida,
+    * llaves recogidas (bitmask), catapultas usadas (bitmask), y fase de vuelo (0 = normal,
+    * 1-3 = fases de catapulta).
+    * 
+    * Orden de expansión: RIGHT, UP, LEFT, DOWN.
+    * En fases de catapulta solo se permite ACTION_NIL.
+*/
 public class AgenteProfundidad extends AbstractPlayer {
-
+    // --- Dimensiones del mapa ---
     private int blockSize, gridW, gridH;
-    private int metaX, metaY, iniX, iniY;
-    private boolean[][] muro, agua;
 
+    // --- Posiciones relevantes ---
+    private int metaX, metaY;   // Coordenadas del portal.
+    private int iniX, iniY;     // Posición inicial del avatar.
+
+    // --- Obstáculos ---
+    private boolean[][] muro;   // 'true' Si la celda es muro o agua.
+    private boolean[][] agua;   // 'true' Si la celda es agua (necesario para catapultas)
+
+    // --- Catapultas ---
+    // catDir: (x, y) -> Vector de dirección de lanzamiento.
+    // catIdx: )x, y) -> Índice en el bitmask de catapultas.
     private HashMap<Long, int[]> catDir;
     private HashMap<Long, Integer> catIdx;
-    private int numCats;
+    private int numCats;    // Número total de catapultas en el mapa.
 
-    private long[] monPos;
-    private int numMon;
-    // private int llaveX = -1, llaveY = -1;
-    private long[] llavePos;
-    private int numLlaves;
-    private boolean catapultasGratis;
+    // --- Monedas ---
+    private long[] monPos;  // Posiciones de las monedas.
+    private int numMon;     // Número total de monedas.
+
+    // --- Llaves ---
+    private long[] llavePos;    // Posiciones codificadas de cada llave.
+    private int numLlaves;      // Número total de llaves.
 
     private ArrayList<ACTIONS> plan = null;
     private int nodosExp = 0, profMax = 0;
@@ -117,9 +143,6 @@ public class AgenteProfundidad extends AbstractPlayer {
         numMon = ml.size();
         monPos = new long[numMon];
         for (int i = 0; i < numMon; i++) monPos[i] = ml.get(i);
-        catapultasGratis = (numMon == 0);
-
-        
     }
 
     // =========================================================
@@ -212,7 +235,6 @@ public class AgenteProfundidad extends AbstractPlayer {
         // Comprobar meta (u es nodo expandido)
         if (esMeta(u)) {
             metaKey = uk;
-            // nodosExp++; // el nodo meta se cuenta como expandido
             return true;
         }
         nodosExp++;
@@ -285,8 +307,8 @@ public class AgenteProfundidad extends AbstractPlayer {
             long pk = enc(nx, ny);
             Integer ci = catIdx.get(pk);
             if (ci != null && (cB & (1 << ci)) != 0) {
-                if (!catapultasGratis && m <= 0) return null;
-                if (!catapultasGratis) m--;
+                if (m <= 0) return null ;
+                m--;
                 int[] dir = catDir.get(pk);
                 cB &= ~(1 << ci);
                 return new Estado(nx, ny, m, l, mB, lB, cB, 1, dir[0], dir[1]);
