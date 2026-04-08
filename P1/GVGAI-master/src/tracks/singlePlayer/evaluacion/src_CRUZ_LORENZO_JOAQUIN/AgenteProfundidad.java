@@ -10,7 +10,7 @@ import tools.Vector2d;
 import tracks.singlePlayer.MetricsProvider;
 
 
-/*
+/**
     * Agente de búsqueda en profundidad (DFS)
     * 
     * Estrategia: Búsqueda offline completa antes de actuar.
@@ -52,16 +52,31 @@ public class AgenteProfundidad extends AbstractPlayer {
     private long[] llavePos;    // Posiciones codificadas de cada llave.
     private int numLlaves;      // Número total de llaves.
 
+    // --- Plan y métricas ---
+    // plan: lista de acciones a ejecutar, generada de una vez por el DFS.
     private ArrayList<ACTIONS> plan = null;
-    private int nodosExp = 0, profMax = 0;
+    private int nodosExp = 0;   // Nodos expandidos durante la búsqueda.
+    private int profMax = 0;    // Profundidad máxima alcanzada en el árbol DFS.
 
-    // Orden DFS: RIGHT, UP, LEFT, DOWN
+    /**
+        * Orden de expansión de acciones en fase normal.
+        * RIGHT, UP, LEFT, DOWN garantiza un comportamiento determinista y coherente
+        * con el pseudocódigo de las diapositivas.
+    */
     private static final ACTIONS[] ORDEN = {
-        ACTIONS.ACTION_RIGHT, ACTIONS.ACTION_UP,
-        ACTIONS.ACTION_LEFT,  ACTIONS.ACTION_DOWN
+        ACTIONS.ACTION_RIGHT, 
+        ACTIONS.ACTION_UP,
+        ACTIONS.ACTION_LEFT,  
+        ACTIONS.ACTION_DOWN
     };
 
-    // Direcciones confirmadas: 5=DOWN, 6=UP, 7=RIGHT, 8=LEFT
+    /**
+        * Devuelve el vector de desplazamiento de una catapulta según el itype.
+        * Los itypes 5-8 corresponden a las cuatro direcciones posibles en el juego.
+        * Devuelve null si el itype no es de catapulta.
+        * @param itype
+        * @return Vector de desplazamiento o null.
+    */
     private static int[] catapultDir(int itype) {
         switch (itype) {
             case 5: return new int[]{0, 1};   // DOWN
@@ -75,6 +90,14 @@ public class AgenteProfundidad extends AbstractPlayer {
     // =========================================================
     //  CONSTRUCTOR
     // =========================================================
+
+    /**
+        * Inicializo el agente extrayendo la información estática del mapa 
+        * desde el estado inicial: dimensiones, muros, agua, catapultas, monedas, llaves y portal.
+        * Esta información se almacena en estructuras propias para no depender del estado del juego durante la búsqueda.
+        * @param so
+        * @param timer
+    */
     public AgenteProfundidad(StateObservation so, ElapsedCpuTimer timer) {
         super();
         blockSize = so.getBlockSize();
@@ -85,32 +108,37 @@ public class AgenteProfundidad extends AbstractPlayer {
         catDir = new HashMap<>();
         catIdx = new HashMap<>();
 
+        // --- Posición inicial del avatar ---
         Vector2d ap = so.getAvatarPosition();
         iniX = gx(ap); iniY = gy(ap);
 
-        // Portal
+        // --- Posición del portal (objetivo) ---
         ArrayList<Observation>[] portales = so.getPortalsPositions();
         if (portales != null && portales.length > 0 && !portales[0].isEmpty()) {
             metaX = gx(portales[0].get(0).position);
             metaY = gy(portales[0].get(0).position);
         }
 
-        // Clasificar inmovables
+        // --- Clasificar inmovables: muros (0), agua (3) y catapultas (5-8) ---
         ArrayList<long[]> catList = new ArrayList<>();
         ArrayList<Observation>[] inmov = so.getImmovablePositions();
+
         if (inmov != null) {
             for (ArrayList<Observation> lista : inmov) {
                 for (Observation obs : lista) {
                     int x = gx(obs.position), y = gy(obs.position);
+
                     if (x < 0 || x >= gridW || y < 0 || y >= gridH) continue;
 
                     if (obs.itype == 0) {
                         muro[x][y] = true;
                     } else if (obs.itype == 3) {
+                        // El agua es un obstáculo para caminar, pero no para volar.
                         agua[x][y] = true;
                         muro[x][y] = true;
                     } else {
                         int[] dir = catapultDir(obs.itype);
+
                         if (dir != null) {
                             long pk = enc(x, y);
                             catDir.put(pk, dir);
@@ -121,14 +149,16 @@ public class AgenteProfundidad extends AbstractPlayer {
             }
         }
 
+        // Asignar un índice a cada catapulta para el bitmask.
         int ci = 0;
         for (long[] cl : catList) catIdx.put(cl[0], ci++);
         numCats = ci;
 
-        // Monedas y llave
+        // --- Clasificar recursos: monedas (15) y llaves (16) ---
         ArrayList<Long> ml = new ArrayList<>();
         ArrayList<Observation>[] rec = so.getResourcesPositions();
         ArrayList<Long> kl = new ArrayList<>();
+
         if (rec != null) {
             for (ArrayList<Observation> lista : rec) {
                 for (Observation obs : lista) {
@@ -137,17 +167,32 @@ public class AgenteProfundidad extends AbstractPlayer {
                 }
             }
         }
-        numLlaves = kl.size();
-        llavePos = new long[numLlaves];
-        for (int i = 0; i < numLlaves; i++) llavePos[i] = kl.get(i);
         numMon = ml.size();
         monPos = new long[numMon];
         for (int i = 0; i < numMon; i++) monPos[i] = ml.get(i);
+
+        numLlaves = kl.size();
+        llavePos = new long[numLlaves];
+        for (int i = 0; i < numLlaves; i++) llavePos[i] = kl.get(i);
     }
+
 
     // =========================================================
     //  ACT
     // =========================================================
+
+    /**
+        * En el primer tick ejecuto el DFS completa y construyo el plan.
+        * En los ticks siguientes, simplemente devuelvo y elimino la primera
+        * acción pendiente del plan. Cuando el plan se agota, devuelvo ACTION_NIL.
+        * 
+        * Esta separación entre planificación y ejecución es lo importante del DFS
+        * ya que toda la exploración ocurre antes de mover el avatar.
+        * 
+        * @param so
+        * @param timer
+        * @return Acción a ejecutar en este tick.
+    */
     @Override
     public ACTIONS act(StateObservation so, ElapsedCpuTimer timer) {
         if (plan == null) {
@@ -170,13 +215,13 @@ public class AgenteProfundidad extends AbstractPlayer {
     // =========================================================
     //  DFS RECURSIVO (pseudocódigo diapositiva pág.14)
     //
-    //  DFS(inicial, objetivo):
+    //  DFS(Nodo inicial, Nodo objetivo):
     //      estado[inicial] = VISITADO
     //      padre[inicial] = null
     //      DFS_search(inicial, objetivo)
     //
     //  DFS_search(u, objetivo):
-    //      if u == objetivo: return TRUE       ← u es nodo expandido
+    //      if u == objetivo: return TRUE       <- u es nodo expandido
     //      for each v in sucesores(u):
     //          if estado[v] == NOVISITADO:
     //              estado[v] = VISITADO
@@ -185,32 +230,43 @@ public class AgenteProfundidad extends AbstractPlayer {
     //      return FALSE
     // =========================================================
 
-    // Variables compartidas para la recursión
+    // Estructuras compartidas entre buscarDFS() y dfsSearch() para
+    // evitar pasar múltiples parámetros en cada llamada recursiva.
     private HashSet<String> visitados;
-    private HashMap<String, String> padreKey;    // key hijo → key padre
-    private HashMap<String, ACTIONS> padreAccion; // key hijo → acción que llevó del padre al hijo
-    private String metaKey;
+    private HashMap<String, String> padreKey;       // key hijo -> key padre.
+    private HashMap<String, ACTIONS> padreAccion;   // key hijo -> acción que llevó del padre al hijo.
+    private String metaKey;                         // key del nodo meta encontrado.
 
+    /**
+        *  Lanzo el DFS desde el estado inicial y reconstruyo el plan de acciones 
+        *  siguiendo los punteros padre desde el nodo meta hasta el nodo inicial.
+        * 
+        *  El estado inicial codifica todas las monedas, llaves y catapultas como
+        *  disponibles usando bitmask (esto quiere decir todos los bits a 1).
+        *  
+        * @return Lista ordenada de acciones desde inicio hasta meta o lista vacía si no encuentro solución.
+    */
     private ArrayList<ACTIONS> buscarDFS() {
         visitados = new HashSet<>();
         padreKey = new HashMap<>();
         padreAccion = new HashMap<>();
         metaKey = null;
 
-
-        Estado e0 = new Estado(iniX, iniY, 0, false,
+        // Estado inicial: Posición de inicio, sin monedas ni llaves recogidas,
+        // todas las monedas, llaves y catapultas disponibles.
+        Nodo n0 = new Nodo(iniX, iniY, 0, false,
                 (1 << numMon) - 1, 
                 (1 << numLlaves) - 1, 
                 (1 << numCats) - 1, 
                 0, 0, 0);
 
-        String k0 = e0.key();
+        String k0 = n0.key();
         visitados.add(k0);
-        padreKey.put(k0, null);
+        padreKey.put(k0, null);     // El nodo inicial no tiene padre.
 
-        dfsSearch(e0);
+        dfsSearch(n0);
 
-        // Reconstruir plan
+        // Reconstruyo el plan siguiendo los punteros padre desde la meta.
         ArrayList<ACTIONS> r = new ArrayList<>();
         if (metaKey != null) {
             Deque<ACTIONS> p = new ArrayDeque<>();
@@ -224,28 +280,48 @@ public class AgenteProfundidad extends AbstractPlayer {
         return r;
     }
 
-    private boolean dfsSearch(Estado u) {
+    /**
+        * Implementación recursiva del DFS. 
+        * Cada llamada que hago corresponde a la expansión de un nodo 'u'.
+        * Se actualiza la profundidad máxima y se incrementa nodosExp antes de
+        * generar los sucesores (el nodo meta NO lo expando, solo lo detecto).
+        * 
+        * En fase normal (0) genero sucesores en el orden RIGHT, UP, LEFT, DOWN
+        * En fases de catapulta (1, 2, 3) el único sucesor posible es ACTION_NIL
+        * ya que el agente está volando y no puede elegir otra acción.
+        
+        * @param u
+        * @return 'true' Si encuentro la meta en esta rama, 'false' en caso contrario.
+    */
+    private boolean dfsSearch(Nodo u) {
         String uk = u.key();
+
+        // Calculo la profundidad del nodo actual contando saltos hasta la raíz.
         int depth = 0;
-        // Calcular profundidad recorriendo padres
         String k = uk;
+
         while (padreKey.get(k) != null) { depth++; k = padreKey.get(k); }
+
         if (depth > profMax) profMax = depth;
 
-        // Comprobar meta (u es nodo expandido)
+        // Si 'u' es la meta, lo que hago es detener la búsqueda sin expandirlo.
         if (esMeta(u)) {
             metaKey = uk;
             return true;
         }
+
+        // El nodo 'u' se expande aquí, incremento el contador.
         nodosExp++;
 
-        // Generar sucesores según la fase
         if (u.fase == 0) {
-            // Fase normal: expandir en orden RIGHT, UP, LEFT, DOWN
+            // Fase normal: Pruebo las 4 direcciones en el orden definido en ORDEN.
             for (ACTIONS a : ORDEN) {
-                Estado v = trans(u, a);
-                if (v == null) continue;
+                Nodo v = trans(u, a);
+
+                if (v == null) continue;        // Acción no válida.
+
                 String vk = v.key();
+
                 if (!visitados.contains(vk)) {
                     visitados.add(vk);
                     padreKey.put(vk, uk);
@@ -254,14 +330,19 @@ public class AgenteProfundidad extends AbstractPlayer {
                 }
             }
         } else {
-            // Fases catapulta (1,2,3): solo ACTION_NIL
-            Estado v = trans(u, ACTIONS.ACTION_NIL);
+            // Fases de catapulta (1, 2, 3): Agente vuela, solo ACTION_NIL.
+            Nodo v = trans(u, ACTIONS.ACTION_NIL);
+
             if (v != null) {
                 String vk = v.key();
+
                 if (!visitados.contains(vk)) {
                     visitados.add(vk);
+
                     padreKey.put(vk, uk);
+
                     padreAccion.put(vk, ACTIONS.ACTION_NIL);
+
                     if (dfsSearch(v)) return true;
                 }
             }
@@ -270,109 +351,191 @@ public class AgenteProfundidad extends AbstractPlayer {
         return false;
     }
 
+
     // =========================================================
     //  MODELO DE ESTADO Y TRANSICIÓN
     // =========================================================
-    private boolean esMeta(Estado e) {
-        return e.x == metaX && e.y == metaY && e.llave && e.fase == 0;
+
+    /**
+        * Condición de meta: El agente está en el portal, tiene al menos una llave y 
+        * se encuentra en fase normal (es decir, no está volando).
+        * @param e
+        * @return 'true' si 'e' es un estado meta, 'false' en caso contrario.
+    */
+    private boolean esMeta(Nodo n) {
+        return n.x == metaX && n.y == metaY && n.llave && n.fase == 0;
     }
 
-    private Estado trans(Estado e, ACTIONS a) {
-        if (e.fase == 0) {
-            int m = e.mon; 
-            boolean l = e.llave; 
-            int mB = e.mB, cB = e.cB, lB = e.lB;
-
+    /**
+        * Función de transición: Calculo el estado resultante de aplicar la acción 'a' 
+        * al estado 'e' sin modificar 'e'.
+        * 
+        * Gestiono 4 fases:
+        * - Fase 0: Movimiento normal, recogida de objetos, entrada en catapulta.
+        * - Fase 1: Tick de inicio de vuelo (posición fija, preparación).
+        * - Fase 2: Tick de vuelo activo, el agente avanza según la dirección de la catapulta.
+        * - Fase 3: Tick de rebote en catapulta encadenada durante el vuelo.
+        * 
+        * @param e
+        * @param a
+        * @return 'null' si el movimiento es inválido (muro, fuera del mapa, etc).
+    */
+    private Nodo trans(Nodo n, ACTIONS a) {
+        if (n.fase == 0) {
             if (a == ACTIONS.ACTION_NIL) return null;
             int[] d = delta(a);
-            int nx = e.x + d[0], ny = e.y + d[1];
+            int nx = n.x + d[0], ny = n.y + d[1];
+
             if (nx < 0 || nx >= gridW || ny < 0 || ny >= gridH) return null;
+
             if (muro[nx][ny]) return null;
-            //if (nx == metaX && ny == metaY && !e.llave) return null;
+
+            int m = n.mon; 
+            int mB = n.mB, cB = n.cB, lB = n.lB;
+            boolean l = n.llave; 
+
+            // Recojo llave si la hay en la celda destino y aún no la tengo.
             int li = llaveIdx(nx, ny);
-            if (li >= 0 && (lB & (1 << li)) != 0 && !l) { lB &= ~(1 << li); l = true; }
-            
-            
 
-            int mi = monIdx(nx, ny);
-            if (mi >= 0 && (mB & (1 << mi)) != 0 && m < 5) { m++; mB &= ~(1 << mi); }
-            // if (nx == llaveX && ny == llaveY && !l) l = true;
+            if (li >= 0 && (lB & (1 << li)) != 0 && !l) { 
+                lB &= ~(1 << li); 
 
-            int llaveIdx = llaveIdx(nx, ny);
-            if (llaveIdx >= 0 && (lB & (1 << llaveIdx)) != 0) {
-                lB &= ~(1 << llaveIdx); // marcar como recogida
-                l = true;               // ahora el avatar tiene llave
+                l = true; 
             }
 
+            // Recojo moneda si la hay (máximo puedo coger 5 monedas).
+            int mi = monIdx(nx, ny);
+
+            if (mi >= 0 && (mB & (1 << mi)) != 0 && m < 5) { 
+                m++; 
+
+                mB &= ~(1 << mi); 
+            }
+
+            // Recojo llave duplicada (marca como recogida aunque ya tenga).
+            int llaveIdx = llaveIdx(nx, ny);
+
+            if (llaveIdx >= 0 && (lB & (1 << llaveIdx)) != 0) {
+                lB &= ~(1 << llaveIdx);
+
+                l = true;               
+            }
+
+            // Entro en catapulta: requiere moneda
             long pk = enc(nx, ny);
             Integer ci = catIdx.get(pk);
+
             if (ci != null && (cB & (1 << ci)) != 0) {
                 if (m <= 0) return null ;
+
                 m--;
+
                 int[] dir = catDir.get(pk);
+
                 cB &= ~(1 << ci);
-                return new Estado(nx, ny, m, l, mB, lB, cB, 1, dir[0], dir[1]);
+
+                // Paso a fase 1: Inicio de vuelo con posición 'dir'.
+                return new Nodo(nx, ny, m, l, mB, lB, cB, 1, dir[0], dir[1]);
             }
 
-            return new Estado(nx, ny, m, l, mB, lB, cB, 0, 0, 0);
+            return new Nodo(nx, ny, m, l, mB, lB, cB, 0, 0, 0);
 
-        } else if (e.fase == 1) {
+        } else if (n.fase == 1) {
+            // Tick de preparación de vuelo: El agente se queda en la misma celda.
             if (a != ACTIONS.ACTION_NIL) return null;
-            return new Estado(e.x, e.y, e.mon, e.llave, e.mB, e.lB, e.cB, 2, e.vdx, e.vdy);
 
-        } else if (e.fase == 2) {
-            int m = e.mon; 
-            boolean l = e.llave; 
-            int mB = e.mB, cB = e.cB, lB = e.lB;
+            // Paso a fase 2.
+            return new Nodo(n.x, n.y, n.mon, n.llave, n.mB, n.lB, n.cB, 2, n.vdx, n.vdy);
 
+        } else if (n.fase == 2) {
+            // Tick de vuelo: El agente avanza según la dirección de la catapulta.
             if (a != ACTIONS.ACTION_NIL) return null;
-            int tx = e.x + e.vdx, ty = e.y + e.vdy;
+            int tx = n.x + n.vdx, ty = n.y + n.vdy;
 
+            // Colisión: Fuera del mapa, muro o portal sin llave.
             boolean col = (tx < 0 || tx >= gridW || ty < 0 || ty >= gridH);
+
             if (!col) col = (muro[tx][ty] && !agua[tx][ty]);
-            if (!col && tx == metaX && ty == metaY && !e.llave) col = true;
+
+            if (!col && tx == metaX && ty == metaY && !n.llave) col = true;
 
             if (col) {
-                if (agua[e.x][e.y]) return null;
-                return new Estado(e.x, e.y, e.mon, e.llave, e.mB, e.lB, e.cB, 0, 0, 0);
+                // El agente cae donde está, si es agua, no vale.
+                if (agua[n.x][n.y]) return null;
+                return new Nodo(n.x, n.y, n.mon, n.llave, n.mB, n.lB, n.cB, 0, 0, 0);
             }
 
             int nx = tx, ny = ty;
+            int m = n.mon; 
+            int mB = n.mB, cB = n.cB, lB = n.lB;
+            boolean l = n.llave; 
+
             int mi = monIdx(nx, ny);
             if (mi >= 0 && (mB & (1 << mi)) != 0 && m < 5) { m++; mB &= ~(1 << mi); }
-            //if (nx == llaveX && ny == llaveY && !l) l = true;
+
             int li = llaveIdx(nx, ny);
             if (li >= 0 && (lB & (1 << li)) != 0 && !l) { lB &= ~(1 << li); l = true; }
 
-            // Si aterrizamos en el portal con llave, detenemos el vuelo
+            // Atterizo en el portal con llave: Vuelvo a fase normal.
             if (nx == metaX && ny == metaY && l) {
-                return new Estado(nx, ny, m, l, mB, lB, cB, 0, 0, 0);
+                return new Nodo(nx, ny, m, l, mB, lB, cB, 0, 0, 0);
             }
 
+            // Catapulta encadenada durante el vuelo: Paso a fase 3.
             long pk = enc(nx, ny);
             Integer ci = catIdx.get(pk);
+
             if (ci != null && (cB & (1 << ci)) != 0) {
                 int[] dir = catDir.get(pk);
+
                 cB &= ~(1 << ci);
-                return new Estado(nx, ny, m, l, mB, lB, cB, 3, dir[0], dir[1]);
+
+                return new Nodo(nx, ny, m, l, mB, lB, cB, 3, dir[0], dir[1]);
             }
 
-            return new Estado(nx, ny, m, l, mB, lB, cB, 2, e.vdx, e.vdy);
+            return new Nodo(nx, ny, m, l, mB, lB, cB, 2, n.vdx, n.vdy);
 
-        } else if (e.fase == 3) {
+        } else if (n.fase == 3) {
+            // Tick de rebote: Reemplazo la dirección de vuelo con la de la nueva catapulta.
             if (a != ACTIONS.ACTION_NIL) return null;
-            return new Estado(e.x, e.y, e.mon, e.llave, e.mB, e.lB, e.cB, 2, e.vdx, e.vdy);
+            return new Nodo(n.x, n.y, n.mon, n.llave, n.mB, n.lB, n.cB, 2, n.vdx, n.vdy);
         }
         return null;
     }
 
+
     // =========================================================
     //  UTILIDADES
     // =========================================================
+
+    /**
+        * Convierto coordenada de píxel a coordenada de celda en el eje X.
+        * @param p
+        * @return Coordenada de celda X.
+    */
     private int gx(Vector2d p) { return (int)(p.x / blockSize); }
+
+    /**
+        * Convierto coordenada de píxel a coordenada de celda en el eje Y.
+        * @param p
+        * @return Coordenada de celda Y.
+    */
     private int gy(Vector2d p) { return (int)(p.y / blockSize); }
+
+    /**
+        * Codifico (x, y) como un long para usarlo como clave en HashMaps.
+        * Evito crear objetos Point o String innecesarios durante la búsqueda.
+        * @param x
+        * @param y
+        * @return Clave única para la posición (x, y).
+    */
     private long enc(int x, int y) { return (long)y * gridW + x; }
 
+    /**
+        * Devuelvo el vector de desplazamiento (dx, dy) asociado a una acción.
+        * @param a
+        * @return Vector de desplazamiento o {0, 0} si la acción no es de movimiento.
+    */
     private int[] delta(ACTIONS a) {
         switch (a) {
             case ACTION_RIGHT: return new int[]{1, 0};
@@ -383,12 +546,24 @@ public class AgenteProfundidad extends AbstractPlayer {
         }
     }
 
+    /**
+        * Devuelvo el índice de la moneda en la posición (x, y) o -1 si no hay moneda.
+        * @param x
+        * @param y
+        * @return Índice de la moneda o -1 si no hay moneda.
+    */
     private int monIdx(int x, int y) {
         long k = enc(x, y);
         for (int i = 0; i < numMon; i++) if (monPos[i] == k) return i;
         return -1;
     }
 
+    /**
+        * Devuelvo el índice de la llave en la posición (x, y) o -1 si no hay llave.
+        * @param x
+        * @param y
+        * @return Índice de la llave o -1 si no hay llave.
+    */
     private int llaveIdx(int x, int y) {
         long k = enc(x, y);
         for (int i = 0; i < numLlaves; i++) if (llavePos[i] == k) return i;
@@ -397,17 +572,40 @@ public class AgenteProfundidad extends AbstractPlayer {
 
 
     // =========================================================
-    //  CLASES INTERNAS
+    //  CLASE INTERNA: NODO
     // =========================================================
-    private static class Estado {
+
+    /**
+        * Represento un nodo del juego de forma explícita con la información relevante.
+        * 
+        * Campos:
+        * - (x, y): Posición del avatar en coordenadas de celda.
+        * - mon: Número de monedas recogidas (0 a 5).
+        * - llave: 'true' si el avatar tiene al menos una llave, 'false' en caso contrario.
+        * - mB: Bitmask de monedas disponibles en el mapa (1 = moneda disponible, 0 = moneda recogida).
+        * - lB: Bitmask de llaves disponibles en el mapa (1 = llave disponible, 0 = llave recogida).
+        * - cB: Bitmask de catapultas disponibles en el mapa (1 = catapulta sin usar, 0 = catapulta usada).
+        * - fase: fase de vuelo: 0 = normal, 1 = inicio de vuelo, 2 = vuelo activo, 3 = rebote en catapulta encadenada.
+        * - vdx, vdy: Vector de desplazamiento de la catapulta actual (solo relevante en fases 1, 2 y 3).
+        * 
+        * Con el método 'key()' genero una cadena única que identifica el estado, usado como clave en los HashMaps de 
+        * visitados, de padre y de acción.
+    */
+    private static class Nodo {
         int x, y, mon, mB, lB, cB, fase, vdx, vdy;
         boolean llave;
 
-        Estado(int x, int y, int m, boolean l, int mB, int lB, int cB, int f, int vx, int vy) {
+        Nodo(int x, int y, int m, boolean l, int mB, int lB, int cB, int f, int vx, int vy) {
             this.x = x; this.y = y; mon = m; llave = l;
             this.mB = mB; this.lB = lB; this.cB = cB; fase = f; vdx = vx; vdy = vy;
         }
 
+        /**
+            * Genero una clave String que identifica el estado.
+            * Incluyo todos los campos relevantes para evitar colisiones entre estados distintos 
+            * que comparten posición pero son distintos en recursos o fase de vuelo.
+            * @return Clave única para este estado.
+        */
         String key() {
             return x + "," + y + "," + mon + "," + (llave ? 1 : 0) + ","
                  + mB + "," + lB + "," + cB + "," + fase + "," + vdx + "," + vdy;
