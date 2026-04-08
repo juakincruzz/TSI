@@ -37,6 +37,7 @@ public class AgenteAStar extends AbstractPlayer {
 
     private ArrayList<ACTIONS> plan = null;
     private int nodosExp = 0, profMax = 0;
+    private int nodosAbiertos = 0, nodosCerrados = 0;
 
     private static final ACTIONS[] ORDEN = {
         ACTIONS.ACTION_RIGHT, ACTIONS.ACTION_UP,
@@ -137,7 +138,21 @@ public class AgenteAStar extends AbstractPlayer {
     // =========================================================
     @Override
     public ACTIONS act(StateObservation so, ElapsedCpuTimer timer) {
-        if (plan == null) plan = buscarAStar();
+        if (plan == null) {
+            long t0 = System.currentTimeMillis();
+            plan = buscarAStar();
+
+            MetricsProvider mp = MetricsProvider.getInstance();
+            mp.setNodosExpandidos(nodosExp);
+            mp.setProfundidadMaxima(profMax);
+            mp.setNodosAbiertos(nodosAbiertos);
+            mp.setNodosCerrados(nodosCerrados);
+            mp.setNumAccionesPlan(plan.size() > 0 ? plan.size() : -1);
+            mp.setTiempoMilisegundos(System.currentTimeMillis() - t0);
+            mp.setAgente("A*");
+            mp.printMetrics();
+        }
+
         if (!plan.isEmpty()) return plan.remove(0);
         return ACTIONS.ACTION_NIL;
     }
@@ -165,8 +180,6 @@ public class AgenteAStar extends AbstractPlayer {
         HashMap<String, Nodo> ce = new HashMap<>();     // cerrados por key
         int ord = 0;
 
-        long t0 = System.currentTimeMillis();
-
         // boolean tieneLlaveInicial = (llaveX == -1);
         Estado e0 = new Estado(iniX, iniY, 0, false,
             (1 << numMon) - 1, 
@@ -188,10 +201,15 @@ public class AgenteAStar extends AbstractPlayer {
             if (ac.pr > profMax) profMax = ac.pr;
 
             // ¿Es meta?
-            if (esMeta(ac.e)) { meta = ac; break; }
+            if (esMeta(ac.e)) { 
+                meta = ac;
+                this.nodosAbiertos = abM.size();  // +1 por el nodo meta que acabamos de sacar
+                this.nodosCerrados = ce.size();   
+                break; 
+            }
 
             nodosExp++;
-
+            nodosCerrados++;
             ce.put(ka, ac);
 
             // Expandir sucesores
@@ -229,18 +247,8 @@ public class AgenteAStar extends AbstractPlayer {
             for (Nodo n = meta; n.padre != null; n = n.padre) p.push(n.accion);
             while (!p.isEmpty()) r.add(p.pop());
         }
-
-        MetricsProvider mp = MetricsProvider.getInstance();
-        mp.setNodosExpandidos(nodosExp);
-        mp.setProfundidadMaxima(profMax);
-        mp.setNodosAbiertos(abM.size());
-        mp.setNodosCerrados(ce.size());
-        mp.setNumAccionesPlan(meta != null ? r.size() : -1);
-        mp.setTiempoMilisegundos(System.currentTimeMillis() - t0);
-        mp.printMetrics();
         return r;
 
-        
     }
 
     // =========================================================

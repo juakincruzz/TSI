@@ -127,7 +127,19 @@ public class AgenteProfundidad extends AbstractPlayer {
     // =========================================================
     @Override
     public ACTIONS act(StateObservation so, ElapsedCpuTimer timer) {
-        if (plan == null) plan = buscarDFS();
+        if (plan == null) {
+            long t0 = System.currentTimeMillis();
+            plan = buscarDFS();
+            
+            MetricsProvider mp = MetricsProvider.getInstance();
+            mp.setNodosExpandidos(nodosExp);
+            mp.setProfundidadMaxima(profMax);
+            mp.setNumAccionesPlan(plan.size() > 0 ? plan.size() : -1);
+            mp.setTiempoMilisegundos(System.currentTimeMillis() - t0);
+            mp.setAgente("Profundidad");
+            mp.printMetrics();
+        }
+
         if (!plan.isEmpty()) return plan.remove(0);
         return ACTIONS.ACTION_NIL;
     }
@@ -162,9 +174,7 @@ public class AgenteProfundidad extends AbstractPlayer {
         padreAccion = new HashMap<>();
         metaKey = null;
 
-        long t0 = System.currentTimeMillis();
 
-        // boolean tieneLlaveInicial = (llaveX == -1);
         Estado e0 = new Estado(iniX, iniY, 0, false,
                 (1 << numMon) - 1, 
                 (1 << numLlaves) - 1, 
@@ -188,13 +198,6 @@ public class AgenteProfundidad extends AbstractPlayer {
             }
             while (!p.isEmpty()) r.add(p.pop());
         }
-
-        MetricsProvider mp = MetricsProvider.getInstance();
-        mp.setNodosExpandidos(nodosExp);
-        mp.setProfundidadMaxima(profMax);
-        mp.setNumAccionesPlan(metaKey != null ? r.size() : -1);
-        mp.setTiempoMilisegundos(System.currentTimeMillis() - t0);
-        mp.printMetrics();
         return r;
     }
 

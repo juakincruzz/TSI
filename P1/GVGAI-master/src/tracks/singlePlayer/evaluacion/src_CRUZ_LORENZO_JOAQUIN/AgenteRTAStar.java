@@ -151,7 +151,12 @@ public class AgenteRTAStar extends AbstractPlayer {
         // if actual == objetivo: break
         if (esMeta(actual)) {
             finalizado = true;
-            fijarMetricas(true);
+            MetricsProvider mp = MetricsProvider.getInstance();
+            mp.setNumAccionesPlan(nodosExp);
+            mp.setNodosExpandidos(nodosExp);
+            mp.setTiempoMilisegundos(System.currentTimeMillis() - t0);
+            mp.setAgente("RTA*");
+            mp.printMetrics();
             return ACTIONS.ACTION_NIL;
         }
 
@@ -175,7 +180,12 @@ public class AgenteRTAStar extends AbstractPlayer {
 
         if (accionesValidas.isEmpty()) {
             finalizado = true;
-            fijarMetricas(false);
+            MetricsProvider mp = MetricsProvider.getInstance();
+            mp.setNumAccionesPlan(nodosExp);
+            mp.setNodosExpandidos(nodosExp);
+            mp.setTiempoMilisegundos(System.currentTimeMillis() - t0);
+            mp.setAgente("RTA*");
+            mp.printMetrics();
             return ACTIONS.ACTION_NIL;
         }
 
@@ -211,11 +221,15 @@ public class AgenteRTAStar extends AbstractPlayer {
 
         if (esMeta(actual)) {
             finalizado = true;
-            fijarMetricas(true);
+            MetricsProvider mp = MetricsProvider.getInstance();
+            mp.setNumAccionesPlan(nodosExp);
+            mp.setNodosExpandidos(nodosExp);
+            mp.setTiempoMilisegundos(System.currentTimeMillis() - t0);
+            mp.setAgente("RTA*");
+            mp.printMetrics();
         }
 
         return accionesValidas.get(mejorIdx);
-        
     }
 
     // =========================================================
@@ -339,14 +353,6 @@ public class AgenteRTAStar extends AbstractPlayer {
         long k = enc(x, y);
         for (int i = 0; i < numLlaves; i++) if (llavePos[i] == k) return i;
         return -1;
-    }
-
-    private void fijarMetricas(boolean victoria) {
-        MetricsProvider mp = MetricsProvider.getInstance();
-        mp.setNumAccionesPlan(nodosExp);
-        mp.setNodosExpandidos(nodosExp);
-        mp.setTiempoMilisegundos(System.currentTimeMillis() - t0);
-        mp.printMetrics();
     }
 
     // =========================================================

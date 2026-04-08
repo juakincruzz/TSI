@@ -107,7 +107,7 @@ public class AgenteLRTAStarK extends AbstractPlayer {
 
         ArrayList<Long> ml = new ArrayList<>();
         ArrayList<Long> kl = new ArrayList<>();
-        ArrayList[] rec = so.getResourcesPositions();
+        ArrayList<Observation>[] rec = so.getResourcesPositions();
         if (rec != null) {
             for (ArrayList<Observation> lista : rec) {
                 for (Observation obs : lista) {
@@ -148,7 +148,13 @@ public class AgenteLRTAStarK extends AbstractPlayer {
 
         // Comprobar meta antes de actuar
         if (esMeta(actual)) {
-            finalizarBusqueda();
+            MetricsProvider mp = MetricsProvider.getInstance();
+            mp.setNodosExpandidos(nodosExp);
+            mp.setNumAccionesPlan(numAcciones);
+            mp.setNumActualizacionesTabla(numActualizacionesTabla);
+            mp.setTiempoMilisegundos(System.currentTimeMillis() - tiempoInicio);
+            mp.setAgente("LRTA*(k)");
+            mp.printMetrics();
             return ACTIONS.ACTION_NIL;
         }
 
@@ -175,7 +181,13 @@ public class AgenteLRTAStarK extends AbstractPlayer {
         }
 
         if (mejorSucesor == null) {
-            finalizarBusqueda();
+            MetricsProvider mp = MetricsProvider.getInstance();
+            mp.setNodosExpandidos(nodosExp);
+            mp.setNumAccionesPlan(numAcciones);
+            mp.setNumActualizacionesTabla(numActualizacionesTabla);
+            mp.setTiempoMilisegundos(System.currentTimeMillis() - tiempoInicio);
+            mp.setAgente("LRTA*(k)");
+            mp.printMetrics();
             return ACTIONS.ACTION_NIL;
         }
 
@@ -185,7 +197,13 @@ public class AgenteLRTAStarK extends AbstractPlayer {
 
 
         if (esMeta(actual)) {
-            finalizarBusqueda();
+            MetricsProvider mp = MetricsProvider.getInstance();
+            mp.setNodosExpandidos(nodosExp);
+            mp.setNumAccionesPlan(numAcciones);
+            mp.setNumActualizacionesTabla(numActualizacionesTabla);
+            mp.setTiempoMilisegundos(System.currentTimeMillis() - tiempoInicio);
+            mp.setAgente("LRTA*(k)");
+            mp.printMetrics();
         }
 
         return mejorAccion;
@@ -264,18 +282,6 @@ public class AgenteLRTAStarK extends AbstractPlayer {
 
     private boolean esMeta(Estado e) {
         return e.x == metaX && e.y == metaY && e.llave && e.fase == 0;
-    }
-
-    private void finalizarBusqueda() {
-        haTerminado = true;
-        long tiempoTotal = System.currentTimeMillis() - tiempoInicio;
-        MetricsProvider mp = MetricsProvider.getInstance();
-        mp.setNodosExpandidos(nodosExp);
-        mp.setNumAccionesPlan(numAcciones);
-        mp.setNumActualizacionesTabla(numActualizacionesTabla); // Nueva métrica para LRTA*
-        mp.setTiempoMilisegundos(tiempoTotal);
-        mp.setAgente("LRTA*(k)");
-        mp.printMetrics();
     }
 
     private Estado trans(Estado e, ACTIONS a) {
@@ -390,7 +396,15 @@ public class AgenteLRTAStarK extends AbstractPlayer {
     @Override
     public void result(StateObservation stateObservation, ElapsedCpuTimer elapsedCpuTimer) {
         if (!haTerminado) {
-            finalizarBusqueda();
+            haTerminado = true;
+            // ── métricas ──
+            MetricsProvider mp = MetricsProvider.getInstance();
+            mp.setNodosExpandidos(nodosExp);
+            mp.setNumAccionesPlan(numAcciones);
+            mp.setNumActualizacionesTabla(numActualizacionesTabla);
+            mp.setTiempoMilisegundos(System.currentTimeMillis() - tiempoInicio);
+            mp.setAgente("LRTA*(k)");
+            mp.printMetrics();
         }
     }
 }

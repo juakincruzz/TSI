@@ -25,15 +25,14 @@ public class Test {
         String sampleRHEAController = "tracks.singlePlayer.advanced.sampleRHEA.Agent";
 		String sampleOLETSController = "tracks.singlePlayer.advanced.olets.Agent";
 
-		// Mi agente de Depth First Search
 		//String miAgenteDFS = "tracks.singlePlayer.evaluacion.src_CRUZ_LORENZO_JOAQUIN.AgenteProfundidad"; // <- El nombre de mi agente, con el paquete incluido
 		//String miAgenteDFS = "tracks.singlePlayer.evaluacion.src_CRUZ_LORENZO_JOAQUIN.AgenteAStar"; // <- El nombre de mi agente, con el paquete incluido
-		String miAgenteDFS = "tracks.singlePlayer.evaluacion.src_CRUZ_LORENZO_JOAQUIN.AgenteRTAStar"; // <- El nombre de mi agente, con el paquete incluido
-		//String miAgenteDFS = "tracks.singlePlayer.evaluacion.src_CRUZ_LORENZO_JOAQUIN.AgenteLRTAStarK"; // <- El nombre de mi agente, con el paquete incluido
+		//String miAgenteDFS = "tracks.singlePlayer.evaluacion.src_CRUZ_LORENZO_JOAQUIN.AgenteRTAStar"; // <- El nombre de mi agente, con el paquete incluido
+		String miAgenteDFS = "tracks.singlePlayer.evaluacion.src_CRUZ_LORENZO_JOAQUIN.AgenteLRTAStarK"; // <- El nombre de mi agente, con el paquete incluido
 
 
 
-		String agentName = miAgenteDFS; // <- Le decimos al motor que use el mio
+		String agentName = miAgenteDFS; // Aquí digo cuál de los agentes quiero usar.
 
 		//Load available games
 		String spGamesCollection =  "examples/all_games_sp.csv";
@@ -45,7 +44,7 @@ public class Test {
 
 		// Game and level to play
 		int gameIdx = 122;
-		int levelIdx = 0; // level names from 0 to 4 (game_lvlN.txt).
+		int levelIdx = 6; // level names from 0 to 4 (game_lvlN.txt).
 		String gameName = games[gameIdx][1];
 		String game = games[gameIdx][0];
 		String level1 = game.replace(gameName, gameName + "_lvl" + levelIdx);
