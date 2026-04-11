@@ -656,6 +656,9 @@ public class AgenteProfundidad extends AbstractPlayer {
             // Validar que no sea muro
             if (muro[nx][ny]) return null;
 
+            // Validar portal sin llave: el portal bloquea el paso si no se tiene la llave.
+            if (nx == metaX && ny == metaY && !n.llave) return null;
+
             // Copiar estado mutable para el sucesor
             int m = n.mon;
             int mB = n.mB, cB = n.cB, lB = n.lB;
