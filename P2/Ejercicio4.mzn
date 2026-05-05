@@ -16,8 +16,13 @@
 % RESTRICCIONES PRINCIPALES:
 %   · Cada fila, columna y diagonal suman suma_comun.
 %   · nvalue(num_distintos, matriz) con num_distintos >= ceil(N²/2).
-%   · Rotura D4: matriz[1,1] < las otras 3 esquinas;
-%                matriz[1,N] < matriz[N,1].
+%   · Rotura D4: esquinas + reflexión diagonal.
+%
+% ESTRATEGIA DE BÚSQUEDA:
+%   Se usa seq_search para guiar al solver: primero fijar suma_comun
+%   (indomain_min, ya que queremos minimizar), luego las celdas de la
+%   matriz fila por fila (first_fail + indomain_min). Esto mejora
+%   enormemente el rendimiento para N >= 5.
 % ============================================================
 
 include "globals.mzn";
@@ -28,9 +33,9 @@ include "globals.mzn";
 % ============================================================
 % int: N = 3;
 % int: N = 4;
-% int: N = 5;
+ int: N = 5;
 % int: N = 6;
- int: N = 7;
+% int: N = 7;
 
 int: MAXV = 100;
 
@@ -41,8 +46,8 @@ set of int: Rango = 1..N;
 % Si N es par -> solo valores pares (2, 4, 6, ..., 100)
 % Si N es impar -> solo valores impares (1, 3, 5, ..., 99)
 % Integramos la restricción par/impar DIRECTAMENTE en el dominio
-% en lugar de aplicarla como restricción externa. Esto es más
-% eficiente porque reduce el espacio de búsqueda desde el principio.
+% en lugar de aplicarla como restricción externa. Esto reduce el
+% espacio de búsqueda a la mitad desde el inicio.
 % ============================================================
 int: inicio = if N mod 2 = 0 then 2 else 1 endif;
 set of int: Valores = {inicio + 2*k | k in 0..(MAXV - inicio) div 2};
@@ -59,8 +64,10 @@ var int: suma_comun;
 % Suma total de todos los elementos (= suma_comun * N)
 var int: suma_total;
 
-
+% ============================================================
 % RESTRICCIONES
+% ============================================================
+
 % Suma común por filas
 constraint forall(i in Rango)(
     sum(j in Rango)(matriz[i, j]) = suma_comun
@@ -78,36 +85,57 @@ constraint sum(i in Rango)(matriz[i, i]) = suma_comun;
 constraint sum(i in Rango)(matriz[i, N - i + 1]) = suma_comun;
 
 % Relación entre suma total y suma común
-constraint suma_total = sum(i in Rango, j in Rango)(matriz[i, j]) ;
+constraint suma_total = suma_comun * N;
 
 % Al menos la mitad de los valores deben ser distintos.
 % ceil(N²/2) se calcula como (N*N + 1) div 2 para evitar floats.
 int: min_distintos = (N * N + 1) div 2;
 var min_distintos..(N*N): num_distintos;
-constraint nvalue(num_distintos, matriz);
+constraint nvalue(num_distintos, array1d(matriz));
 
 % ============================================================
 % ROTURA DE SIMETRÍAS (grupo diédrico D4: 4 rotaciones + 4 reflexiones)
 % ============================================================
-% Un cuadrado tiene 8 transformaciones simétricas equivalentes.
-% Para eliminarlas, fijamos un representante canónico imponiendo
-% que la esquina superior izquierda sea estrictamente la menor
-% de las 4 esquinas. Esto descarta 4 de las 8 simetrías (las rotaciones).
+% Un cuadrado tiene 8 transformaciones simétricas (4 rotaciones y
+% 4 reflexiones). Para eliminarlas fijamos un representante canónico:
+%
+% 1) La esquina superior izquierda debe ser estrictamente la menor
+%    de las 4 esquinas. Esto descarta las 4 rotaciones (0°, 90°,
+%    180°, 270°), ya que cualquier rotación movería una esquina
+%    mayor a la posición [1,1].
 constraint matriz[1, 1] < matriz[1, N];   % sup-izq < sup-der
 constraint matriz[1, 1] < matriz[N, 1];   % sup-izq < inf-izq
 constraint matriz[1, 1] < matriz[N, N];   % sup-izq < inf-der
 
-% Para eliminar las 4 reflexiones restantes, forzamos que la esquina
-% superior derecha sea estrictamente menor que la inferior izquierda.
-% Esto rompe la simetría de la reflexión sobre la diagonal principal.
+% 2) La esquina superior derecha debe ser menor que la inferior
+%    izquierda. Esto rompe la simetría de reflexión sobre la
+%    diagonal principal, eliminando las 4 reflexiones restantes.
 constraint matriz[1, N] < matriz[N, 1];
 
+% NOTA: No se usa lex_lesseq entre filas porque permutar filas en un
+% cuadrado mágico NO es una simetría válida (las diagonales cambian),
+% y añadirlo eliminaría soluciones genuinamente distintas, empeorando
+% el óptimo encontrado.
 
-% FUNCIÓN OBJETIVO: minimizar la suma total
-solve minimize suma_total;
+% ============================================================
+% ESTRATEGIA DE BÚSQUEDA (clave para N >= 5)
+% ============================================================
+% Se usa seq_search para encadenar dos fases de búsqueda:
+%   1. Primero se fija suma_comun con indomain_min, ya que estamos
+%      minimizando y queremos probar los valores más pequeños antes.
+%   2. Luego se asignan las celdas de la matriz con first_fail
+%      (variable con menor dominio primero) e indomain_min (valor
+%      más pequeño primero). Esto guía la búsqueda hacia soluciones
+%      de suma mínima de forma mucho más eficiente que la heurística
+%      por defecto de Gecode.
+solve minimize suma_total :: seq_search([
+    int_search([suma_comun], input_order, indomain_min),
+    int_search(array1d(matriz), first_fail, indomain_min)
+]);
 
-
+% ============================================================
 % OUTPUT
+% ============================================================
 output [
     "N = " ++ show(N) ++ "\n" ++
     "MAXV = " ++ show(MAXV) ++ "\n" ++
