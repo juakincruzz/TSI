@@ -1,8 +1,8 @@
-# 📚 Técnicas de los Sistemas Inteligentes (TSI)
+# Técnicas de los Sistemas Inteligentes (TSI)
 
-Repositorio con las prácticas de la asignatura **Técnicas de los Sistemas Inteligentes**, que explora diferentes paradigmas y técnicas fundamentales en el campo de la Inteligencia Artificial.
+Repositorio de las prácticas de la asignatura **Técnicas de los Sistemas Inteligentes**, que explora diferentes paradigmas y técnicas fundamentales en el campo de la Inteligencia Artificial.
 
-## 📋 Descripción General
+## Descripción General
 
 Este repositorio contiene tres prácticas principales que cubren áreas clave de la IA:
 
@@ -12,17 +12,18 @@ Este repositorio contiene tres prácticas principales que cubren áreas clave de
 
 ---
 
-## 📂 Estructura del Repositorio
+## Estructura del Repositorio
 
-### **P1: GVGAI - General Video Game AI Framework**
+### **P1: Experimentación con técnicas de búsqueda**
+### **Nota: 9,59/10**
 
 Implementación de agentes inteligentes utilizando el **General Video Game AI Framework**.
 
-**Tecnologías:**
-- ☕ **Java** (92.1% del proyecto)
+**Lenguaje que he utilizado:**
+- ☕ **Java** 
 
 **Contenidos:**
-- Algoritmos de búsqueda (BFS, DFS, A*, minimax)
+- Algoritmos de búsqueda (DFS, A*, RTA*, LRTA*(k))
 - Desarrollo de agentes basados en juegos
 - Evaluación de estrategias de inteligencia artificial en entornos de videojuegos
 - Implementación del framework GVGAI
@@ -34,12 +35,13 @@ Implementación de agentes inteligentes utilizando el **General Video Game AI Fr
 
 ---
 
-### **P2: Programación por Restricciones (MiniZinc)**
+### **P2: Resolución de problemas de satisfacción de restricciones**
+### **Nota: 9,63/10**
 
 Resolución de problemas de optimización combinatoria mediante **Constraint Programming (CP)**.
 
-**Tecnologías:**
-- 🔧 **MiniZinc** (2% del proyecto)
+**Entorno de trabajo:**
+- **MiniZinc**
 
 **Contenidos:**
 - Ejercicio 1a y 1b: Introducción a MiniZinc y modelado de restricciones básicas
@@ -60,12 +62,13 @@ Resolución de problemas de optimización combinatoria mediante **Constraint Pro
 
 ---
 
-### **P3: Planificación Automática (PDDL)**
+### **P3: Representación de dominios y resolución de problemas con técnicas de planificación**
+### **Nota: 10/10**
 
 Desarrollo de soluciones mediante **Planning Domain Definition Language (PDDL)**, el estándar de facto para planificación automática.
 
-**Tecnologías:**
-- 📋 **PDDL** (3.7% del proyecto)
+**Lenguaje:**
+- **PDDL**
 
 **Contenidos:**
 - **Dominios (5 dominios)**: Definición de acciones, predicados y restricciones
@@ -85,18 +88,6 @@ Desarrollo de soluciones mediante **Planning Domain Definition Language (PDDL)**
 - Problemas de logística y transporte
 - Problemas de manipulación de objetos
 - Problemas con restricciones de recursos
-
----
-
-## 🛠️ Composición del Proyecto
-
-| Lenguaje   | Porcentaje | Uso                          |
-|-----------|-----------|------------------------------|
-| Java      | 92.1%     | Agentes GVGAI              |
-| PDDL      | 3.7%      | Planificación automática   |
-| MiniZinc  | 2.0%      | Optimización con restricciones |
-| Python    | 1.8%      | Scripts auxiliares         |
-| Otros     | 0.4%      | Archivos diversos          |
 
 ---
 
@@ -125,10 +116,10 @@ cd P3
 
 ---
 
-## 📚 Conceptos Clave
+## Conceptos Clave
 
 ### **P1: Búsqueda y Juegos**
-- Algoritmos de búsqueda informada (A*, IDA*)
+- Algoritmos de búsqueda informada (A*, RTA*, LRTA*(k))
 - Algoritmos adversariales (minimax, alpha-beta pruning)
 - Evaluación heurística en espacios de juego
 
@@ -148,11 +139,7 @@ cd P3
 
 ## 👤 Autor
 
-**juakincruzz** - Prácticas desarrolladas como parte del curso de Técnicas de los Sistemas Inteligentes
-
-## 📝 Licencia
-
-Este repositorio contiene código educativo. Consulta con tu institución sobre las políticas de uso y distribución.
+**Joaquín Cruz Lorenzo** - Prácticas desarrolladas como parte del curso de la asignatura Técnicas de los Sistemas Inteligentes.
 
 ---
 
