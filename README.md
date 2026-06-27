@@ -79,30 +79,79 @@ En esta práctica se observa una diferencia clara entre los algoritmos offline y
 
 ---
 
-### **P2: Resolución de problemas de satisfacción de restricciones**
-### **Nota: 9,63/10**
+### P2: Resolución de problemas de satisfacción de restricciones
 
-Resolución de problemas de optimización combinatoria mediante **Constraint Programming (CP)**.
+**Nota:** 9,63/10
 
-**Entorno de trabajo:**
-- **MiniZinc**
+Modelado y resolución de problemas mediante **MiniZinc**, trabajando tanto con problemas de satisfacción de restricciones (**CSP**) como con problemas de optimización con restricciones (**COP**).
 
-**Contenidos:**
-- Ejercicio 1a y 1b: Introducción a MiniZinc y modelado de restricciones básicas
-- Ejercicio 2-3: Problemas clásicos de optimización
-- Ejercicio 4-5a y 5b: Problemas más complejos con múltiples restricciones
-- Ejercicio 6-7: Casos avanzados con optimización multicriterio
+La práctica consiste en transformar enunciados complejos en modelos declarativos, definiendo variables de decisión, dominios, restricciones, funciones objetivo y estrategias de búsqueda.
+
+**Lenguaje y herramienta utilizados:**
+
+* MiniZinc
+* Solvers de programación por restricciones
+
+**Ejercicios implementados:**
+
+| Ejercicio | Problema                                             | Tipo      |
+| --------: | ---------------------------------------------------- | --------- |
+|        1a | Fórmula de una bebida isotónica                      | CSP       |
+|        1b | Minimización del coste de la bebida isotónica        | COP       |
+|         2 | Puzzle lógico de asignación                          | CSP       |
+|         3 | Mochila multiobjetivo con optimización lexicográfica | COP       |
+|         4 | Cuadrado mágico con restricciones adicionales        | COP       |
+|         5 | Planificación de tareas del DeLorean                 | CSP / COP |
+|         6 | Conformación de tribunales de defensa de TFG         | CSP       |
+|         7 | Planificación de horarios NBA                        | CSP       |
+
+**Contenidos principales:**
+
+* Modelado de problemas mediante variables, dominios y restricciones.
+* Uso de restricciones globales como `all_different` y `nvalue`.
+* Formulación de problemas CSP y COP.
+* Optimización de funciones objetivo.
+* Codificación entera para evitar errores de precisión con valores decimales.
+* Análisis de escalabilidad al aumentar el tamaño del dominio.
+* Rotura de simetrías para reducir soluciones equivalentes.
+* Planificación temporal con precedencias y no solapamiento.
+* Asignación de recursos con restricciones de compatibilidad.
+* Comparación entre enumeración de soluciones y optimización.
+
+**Resultados destacados:**
+
+| Ejercicio | Resultado principal                                                                                                                            |
+| --------: | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+|         1 | Comparación entre CSP y COP para la fórmula de una bebida isotónica, observando el crecimiento del espacio de búsqueda al aumentar el volumen. |
+|         2 | Puzzle lógico resuelto con solución única.                                                                                                     |
+|         3 | Mochila multiobjetivo resuelta mediante optimización lexicográfica.                                                                            |
+|         4 | Cuadrado mágico con minimización y rotura de simetrías; análisis de escalabilidad para distintos valores de `N`.                               |
+|         5 | Planificación óptima del montaje del DeLorean con duración mínima de 28 días.                                                                  |
+|         6 | Generación de 4 configuraciones válidas de tribunales de TFG, eliminando simetrías por permutación de tribunales.                              |
+|         7 | Obtención de 12 horarios válidos para una semana NBA cumpliendo restricciones de franjas, back-to-backs y partidos fijos.                      |
 
 **Objetivos de aprendizaje:**
-- Modelar problemas del mundo real como problemas de satisfacción de restricciones (CSP)
-- Utilizar solucionadores de restricciones para encontrar soluciones óptimas
-- Comprender la diferencia entre búsqueda heurística y programación por restricciones
-- Optimizar sistemas complejos con múltiples restricciones
 
-**Problemas tratados:**
-- Problemas de asignación y scheduling
-- Optimización de recursos
-- Problemas combinatorios clásicos
+* Representar problemas reales como modelos de restricciones.
+* Diferenciar entre encontrar una solución factible y demostrar optimalidad.
+* Diseñar modelos declarativos legibles y mantenibles.
+* Usar restricciones globales para mejorar la expresividad del modelo.
+* Analizar la escalabilidad de problemas combinatorios.
+* Aplicar técnicas de rotura de simetrías.
+* Resolver problemas de planificación, asignación y optimización con MiniZinc.
+
+#### Aspectos técnicos destacados de la P2
+
+En esta práctica se trabajaron varios aspectos importantes de la programación por restricciones:
+
+* En el problema de la bebida isotónica se comparó el comportamiento de un CSP frente a un COP, observando que enumerar todas las soluciones puede ser mucho más costoso que optimizar una función objetivo.
+* En el puzzle lógico se usaron restricciones de asignación y `all_different` para garantizar que estudiantes, proyectos, aulas y horarios quedasen vinculados de forma única.
+* En la mochila multiobjetivo se utilizó una codificación binaria para decidir qué objetos seleccionar, respetando restricciones de peso, dependencias y compatibilidad.
+* En el cuadrado mágico se aplicó rotura de simetrías para reducir soluciones equivalentes bajo rotaciones y reflexiones.
+* En la planificación de tareas se modelaron precedencias, duración variable, trabajadores, ayudantes y restricciones de no solapamiento.
+* En los tribunales de TFG se eliminaron simetrías imponiendo un orden canónico entre tribunales.
+* En la planificación NBA se combinaron restricciones de calendario, sesiones, partidos fijos, back-to-backs y distribución de encuentros por día.
+
 
 ---
 
