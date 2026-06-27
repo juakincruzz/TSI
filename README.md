@@ -155,32 +155,79 @@ En esta práctica se trabajaron varios aspectos importantes de la programación 
 
 ---
 
-### **P3: Representación de dominios y resolución de problemas con técnicas de planificación**
-### **Nota: 10/10**
+### P3: Representación de dominios y resolución de problemas con técnicas de planificación
 
-Desarrollo de soluciones mediante **Planning Domain Definition Language (PDDL)**, el estándar de facto para planificación automática.
+**Nota:** 10/10
 
-**Lenguaje:**
-- **PDDL**
+Modelado de problemas de planificación automática mediante **PDDL** y resolución con **Fast Downward / LAMA**.
 
-**Contenidos:**
-- **Dominios (5 dominios)**: Definición de acciones, predicados y restricciones
-  - `dominio1.pddl` - `dominio5.pddl`: Progresión de complejidad en dominios de planificación
-  
-- **Problemas (5 problemas)**: Definición de estados iniciales y objetivos
-  - `problema1.pddl` - `problema5.pddl`: Instancias de complejidad creciente
+La práctica consiste en construir dominios y problemas de planificación de complejidad creciente, partiendo de acciones básicas de movimiento y extracción de recursos hasta llegar a dominios con comunidad de personajes, objetos, edificios, restricciones complejas, creación de Uruk-Hai y costes variables.
+
+**Lenguaje y herramientas utilizados:**
+
+* PDDL
+* Fast Downward
+* LAMA planner
+* SAS+ como representación intermedia generada por el planificador
+
+**Ejercicios implementados:**
+
+| Ejercicio | Problema                                    | Aspectos principales                                                                        |
+| --------: | ------------------------------------------- | ------------------------------------------------------------------------------------------- |
+|         1 | Viajar y extraer recursos                   | Acciones básicas, recursos, personajes, caminos destructibles y análisis de `output.sas`.   |
+|         2 | Comunidad reducida y destrucción del Anillo | Movimiento conjunto, objetos obligatorios y efectos condicionales.                          |
+|         3 | Ampliación de la Comunidad                  | Representación compacta con `comunidadEn`, análisis de escalabilidad y rotura de simetrías. |
+|         4 | Creación de Uruk-Hai                        | Nuevos personajes, edificios, cuantificadores, implicaciones y objetivos existenciales.     |
+|         5 | Costes variables                            | Uso de `total-cost`, costes no unitarios y comparación entre longitud de plan y coste real. |
+
+**Contenidos principales:**
+
+* Definición de dominios y problemas en PDDL.
+* Modelado de acciones con precondiciones y efectos.
+* Uso de constantes, tipos, predicados y funciones.
+* Efectos condicionales mediante `when`.
+* Uso de cuantificadores `forall` y `exists`.
+* Uso de implicaciones para expresar restricciones contextuales.
+* Representación compacta del estado para reducir el espacio de búsqueda.
+* Rotura de simetrías con predicados auxiliares.
+* Análisis de la representación intermedia `output.sas`.
+* Planificación con costes unitarios y costes variables.
+* Comparación entre planes más cortos y planes de menor coste acumulado.
+
+**Resultados destacados:**
+
+| Ejercicio | Resultado principal                                                                                                                                                                  |
+| --------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+|         1 | Plan óptimo de 11 pasos para extraer los recursos requeridos.                                                                                                                        |
+|         2 | Dominio ampliado para formar una Comunidad reducida y destruir el Anillo siguiendo un flujo obligatorio de recogida de objetos.                                                      |
+|         3 | Comparación de varias configuraciones de Comunidad; las configuraciones pequeñas se resuelven en milisegundos, mientras que la variante con Elfo dispara el tiempo de planificación. |
+|         4 | Plan válido de 45 pasos para crear Uruk-Hai combinando edificios, recursos, personajes malignos y transporte de Especia.                                                             |
+|         5 | Introducción de costes variables: el planificador prefiere una ruta con más pasos cuando su coste acumulado es menor.                                                                |
 
 **Objetivos de aprendizaje:**
-- Comprender la representación PDDL de dominios y problemas
-- Diferenciar entre planificación clásica y planificación con restricciones
-- Implementar soluciones escalables para problemas de planificación
-- Aprender sobre grafos de planificación y búsqueda en espacios de planes
 
-**Tipos de problemas:**
-- Planificación de secuencias de acciones
-- Problemas de logística y transporte
-- Problemas de manipulación de objetos
-- Problemas con restricciones de recursos
+* Comprender cómo se representa un problema de planificación clásica.
+* Diseñar dominios PDDL reutilizables y progresivos.
+* Analizar el impacto de la representación sobre el rendimiento del planificador.
+* Reducir el espacio de búsqueda mediante modelado compacto.
+* Aplicar rotura de simetrías para evitar planes equivalentes.
+* Usar cuantificadores e implicaciones para expresar restricciones complejas.
+* Interpretar la traducción de PDDL a SAS+.
+* Diferenciar entre minimizar longitud del plan y minimizar coste acumulado.
+
+#### Aspectos técnicos destacados de la P3
+
+En esta práctica se observa especialmente la importancia del diseño de la representación.
+
+En los primeros ejercicios se parte de un dominio básico con acciones como `Viajar` y `ExtraerRecurso`, incorporando recursos, personajes y caminos destructibles. El análisis de `output.sas` permite ver cómo Fast Downward traduce los predicados PDDL a variables SAS+ y operadores internos.
+
+En el ejercicio de la Comunidad, el uso inicial de posiciones individuales para cada miembro funciona correctamente, pero no escala bien. Por eso, en el ejercicio 3 se introduce el predicado `comunidadEn`, que representa la posición conjunta del grupo y reduce el número de combinaciones de estados que debe explorar el planificador.
+
+También se aplica rotura de simetrías con `hobbitAntes`, evitando que el planificador explore planes equivalentes generados por permutar Hobbits dentro de la Comunidad.
+
+En el ejercicio 4 se amplía el dominio con nuevos personajes, edificios y acciones. Se usan construcciones avanzadas de PDDL como `forall`, `exists` e `imply` para expresar restricciones de construcción, extracción y objetivos existenciales sin crear acciones adicionales innecesarias.
+
+Finalmente, en el ejercicio 5 se introducen costes variables mediante `total-cost`. Esto permite que el planificador no busque simplemente el plan con menos acciones, sino el plan con menor coste real, incluso si eso implica recorrer más pasos.
 
 ---
 
