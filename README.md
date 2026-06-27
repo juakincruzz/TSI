@@ -14,24 +14,68 @@ Este repositorio contiene tres prácticas principales que cubren áreas clave de
 
 ## Estructura del Repositorio
 
-### **P1: Experimentación con técnicas de búsqueda**
-### **Nota: 9,59/10**
+### P1: Agentes basados en búsqueda heurística
 
-Implementación de agentes inteligentes utilizando el **General Video Game AI Framework**.
+**Nota:** 9,59/10
 
-**Lenguaje que he utilizado:**
-- ☕ **Java** 
+Desarrollo de agentes inteligentes para un entorno de videojuegos utilizando el framework **GVGAI**.
+La práctica se centra en comparar distintas técnicas de búsqueda aplicadas a la planificación de rutas en un entorno con obstáculos, recursos, portal de salida y mecánicas especiales como catapultas.
 
-**Contenidos:**
-- Algoritmos de búsqueda (DFS, A*, RTA*, LRTA*(k))
-- Desarrollo de agentes basados en juegos
-- Evaluación de estrategias de inteligencia artificial en entornos de videojuegos
-- Implementación del framework GVGAI
+**Lenguaje utilizado:**
+
+* Java
+
+**Algoritmos implementados:**
+
+| Agente              | Técnica  | Tipo de búsqueda                                   |
+| ------------------- | -------- | -------------------------------------------------- |
+| `AgenteProfundidad` | DFS      | Búsqueda no informada offline                      |
+| `AgenteAStar`       | A*       | Búsqueda heurística offline óptima                 |
+| `AgenteRTAStar`     | RTA*     | Búsqueda heurística en tiempo real                 |
+| `AgenteLRTAStarK`   | LRTA*(k) | Búsqueda en tiempo real con aprendizaje heurístico |
+
+**Contenidos principales:**
+
+* Implementación de agentes para el framework GVGAI.
+* Modelado del estado del juego.
+* Parseo del mapa: muros, agua, portal, monedas, llaves y catapultas.
+* Representación de recursos mediante bitmasks.
+* Gestión de mecánicas especiales de vuelo con catapultas.
+* Comparación de búsqueda offline y búsqueda en tiempo real.
+* Evaluación experimental en varios mapas.
+* Recogida de métricas: acciones, nodos expandidos, profundidad máxima, abiertos, cerrados, actualizaciones heurísticas y tiempo de ejecución.
+
+**Resumen de resultados:**
+
+| Algoritmo | Característica principal                                                              |
+| --------- | ------------------------------------------------------------------------------------- |
+| DFS       | Muy rápido y con bajo consumo de memoria, pero no garantiza optimalidad.              |
+| A*        | Encuentra rutas óptimas, aunque expande más nodos y requiere más memoria.             |
+| RTA*      | Decide en tiempo real, explorando solo vecinos inmediatos en cada tick.               |
+| LRTA*(k)  | Aprende y propaga heurística con `k = 5`, mejorando la convergencia en ciertos mapas. |
 
 **Objetivos de aprendizaje:**
-- Comprender cómo funcionan los algoritmos de búsqueda en espacios de estados
-- Diseñar agentes que tomen decisiones óptimas en entornos complejos
-- Implementar heurísticas eficientes para la búsqueda
+
+* Comprender la diferencia entre búsqueda informada y no informada.
+* Analizar las ventajas e inconvenientes de los algoritmos offline frente a los algoritmos en tiempo real.
+* Implementar heurísticas admisibles para guiar la búsqueda.
+* Estudiar el impacto de la memoria, el tiempo de ejecución y la calidad de la solución.
+* Comparar el comportamiento práctico de DFS, A*, RTA* y LRTA*(k).
+* Aplicar técnicas de búsqueda heurística a un entorno de juego realista.
+
+#### Comparativa de algoritmos en P1
+
+En esta práctica se observa una diferencia clara entre los algoritmos offline y los algoritmos en tiempo real.
+
+**DFS** obtiene soluciones muy rápido y con bajo coste computacional, pero el camino encontrado depende mucho del orden de expansión y no tiene por qué ser óptimo.
+
+**A*** es el algoritmo más adecuado cuando se busca la ruta óptima, ya que combina el coste acumulado `g(n)` con una heurística `h(n)`. Su principal inconveniente es el mayor consumo de memoria debido al mantenimiento de las listas de abiertos y cerrados.
+
+**RTA*** toma decisiones tick a tick y solo analiza los vecinos inmediatos del estado actual. Esto lo hace útil en entornos con restricciones temporales, aunque puede producir recorridos más largos al no tener una visión global del problema.
+
+**LRTA\*(k)** incorpora aprendizaje heurístico y propagación acotada con `k = 5`. Esto permite que la información aprendida se difunda por el espacio de estados y mejore progresivamente el comportamiento del agente.
+
+
 
 ---
 
